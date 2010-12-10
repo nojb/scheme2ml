@@ -1,0 +1,7 @@
+*.cmx
+*.cmo
+*.cmi
+*.o
+src/s2ml
+src/s2ml.opt
+tests/*

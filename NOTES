@@ -1,0 +1,37 @@
+  * No call/cc (this could be added by generating CPS ocaml code 
+      performance hit?)
+  * No redefining standard library, of builtin words
+  * No eval
+
+Design notes
+------------
+
+Four stages:
+
+1) Lexing/Parsing
+
+This is quite trivial.
+
+2) Semantic analysis
+
+This is where all the magic happens: special
+forms are recognized, variables are classified,
+all static analysis is carried out.
+
+3) Emitting ocaml
+
+Simply a matter of taking the Emit.t structure
+and emit the corresponding Ocaml code to the out_channel.
+
+4) Compiling ocaml with Ocaml-Scheme stdlib
+
+Be caureful: even when I quote things (e.g. '45), I have
+to traverse the quoted expression and mangle names!
+
+(for example '+ => _codeforplus_)
+
+TODO:
+
+- Case sensitivity
+- Documentation
+- Name mangling
