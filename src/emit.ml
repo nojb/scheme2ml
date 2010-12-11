@@ -280,6 +280,7 @@ and emit = fun
           [ [] -> failwith (name ^ ": bad arity")
           | [a :: b] -> do {
               emit a;
+              Printf.printf " ";
               loop (count+1) b
             } ]
         in do {

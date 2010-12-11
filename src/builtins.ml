@@ -22,7 +22,7 @@ value builtins = [
   (">", Some (2, "Scheme.gt"), []);
   ("<=", Some (2, "Scheme.le"), []);
   (">=", Some (2, "Scheme.ge"), []);
-  ("newline", None, [(0, "Scheme.newline")]);
+  ("newline", None, [(0, "Scheme.newline");(1, "Scheme.newline_to_port")]);
   ("read", None, [(0, "Scheme_read.read")]);
   ("number->string", None, [(1, "Scheme.number_to_string")]);
   ("boolean?", None, [(1, "Scheme.is_boolean")]);
@@ -32,7 +32,8 @@ value builtins = [
   ("set-car!", None, [(2, "Scheme.set_car_bang")]);
   ("set-cdr!", None, [(2, "Scheme.set_cdr_bang")]);
   ("null?", None, [(1, "Scheme.is_null")]);
-  ("map", Some (1, "Scheme.map"), [(2, "Scheme.map1")]);
+  ("map", Some (1, "Scheme.map"), []);
+  ("for-each", Some (1, "Scheme.for_each"), []);
   ("list?", None, [(1, "Scheme.is_list")]);
   ("list", Some (0, "Scheme.list"), []);
   ("length", None, [(1, "Scheme.length")]);

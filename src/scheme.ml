@@ -341,7 +341,7 @@ value rec map f lists =
         car = apply f heads;
         cdr = map f tails } ];
 
-value rec map1 f cons =
+(*value rec map1 f cons =
   match cons with
   [ Cons cons ->
       Cons {
@@ -349,7 +349,39 @@ value rec map1 f cons =
         cdr = map f cons.cdr
       }
   | Nil -> Nil
-  | _ -> failwith "map: not a list" ];
+  | _ -> failwith "map: not a list" ];*)
+
+value rec for_each f lists =
+  let rec join1 at_nil lists =
+    match lists with
+    [ Nil -> (Nil, Nil)
+    | Cons {
+        car = Cons {
+          car = a;
+          cdr = b
+        };
+        cdr = b'
+      } ->
+        if at_nil < 0 then
+          failwith "map: lists not of the same length"
+        else
+          let (heads, tails) = join1 1 b' in
+          (Cons {car = a; cdr = heads}, Cons {car = b; cdr = tails})
+    | Cons {
+        car = Nil;
+        cdr = z
+      } ->
+        if at_nil > 0 then
+          failwith "map: lists not of the same length"
+        else
+          join1 (-1) z
+    | _ -> failwith "map: not a list of lists" ]
+  in match join1 0 lists with
+  [ (Nil, Nil) -> Void
+  | (heads, tails) -> do {
+      apply f heads;
+      for_each f tails
+    } ];
 
 value rec is_list = fun
   [ Cons cons -> is_list cons.cdr
@@ -483,9 +515,6 @@ value integer_to_char n =
   match n with
   [ Num n when Num.is_integer_num n -> Char (char_of_int (Num.int_of_num n))
   | _ -> failwith "integer->char: not an integer" ];
-
-value newline () =
-  print_newline ();
 
 value string_length string =
   match string with
@@ -621,3 +650,17 @@ value close_output_port port =
   match port with
   [ Out ch -> do { close_out ch; Void }
   | _ -> failwith "close-output-port: not a port" ];
+
+value newline () = do {
+  output_char std_out '\n';
+  Void
+};
+
+value newline_to_port port =
+  match port with
+  [ Out port -> do {
+      output_char current_out.val '\n';
+      Void
+    }
+  | _ -> failwith "newline: not a port" ];
+
