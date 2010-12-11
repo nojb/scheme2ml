@@ -60,6 +60,8 @@ value rec emit_quote = fun
   | Scheme.Boolean True -> Printf.printf "Scheme.t"
   | Scheme.Boolean False -> Printf.printf "Scheme.f"
   | Scheme.Void -> Printf.printf "Scheme.Void"
+  | Scheme.In _
+  | Scheme.Out _
   | Scheme.Lambda _ -> failwith "Emit.emit_quote" ]
 
 and emit_separated sep = fun

@@ -1,8 +1,3 @@
-type inchan = {
-  in_chan : in_channel;
-  peek : mutable option char
-};
-
 type t =
   [ Num of Num.num
   | Symbol of string
@@ -13,6 +8,8 @@ type t =
   | Cons of cons
   | Lambda of t -> t
   | Void
+  | In of (ref (option char) * in_channel)
+  | Out of out_channel
   | Nil ]
 
 and cons = {
@@ -127,6 +124,8 @@ value rec to_string = fun
         else if i = len-1 then (to_string vector.(i)) ^ ")"
         else (to_string vector.(i)) ^ " " ^ (loop (i+1))
       in "#(" ^ (loop 0)
+  | In _ -> "#<input-port>"
+  | Out _ -> "#<output-port>"
   | Cons cons ->
     let rec loop cons =
     match cons.cdr with
@@ -345,3 +344,58 @@ value string_fill string char =
       }
     | _ -> failwith "string-fill!: not a char" ]
   | _ -> failwith "string-fill!: not a string" ];
+
+value is_input_port obj =
+  match obj with
+  [ In _ -> t
+  | _ -> f ];
+
+value is_output_port obj =
+  match obj with
+  [ Out _ -> t
+  | _ -> f ];
+
+value std_in : (ref (option char) * in_channel) = (ref None, stdin);
+value std_out = stdout;
+
+value current_in = ref std_in;
+value current_out = ref std_out;
+
+value current_input_port () =
+  current_in.val;
+
+value current_output_port () =
+  current_out.val;
+
+value with_input_from_file string thunk =
+  match string with
+  [ String string ->
+    let old_in = current_in.val in do {
+      let ch = open_in string in
+      current_in.val := (ref None, ch);
+      let result = apply thunk Nil in
+      close_in ch;
+      current_in.val := old_in;
+      result
+    }
+  | _ -> failwith "with-input-from-file: not a string" ];
+
+value open_input_file filename =
+  match filename with
+  [ String filename -> In (ref None, open_in filename)
+  | _ -> failwith "open-input-file: not a string" ];
+
+value open_output_file filename =
+  match filename with
+  [ String filename -> Out (open_out filename)
+  | _ -> failwith "open-output-file: not a string" ];
+
+value close_input_port port =
+  match port with
+  [ In (_, ch) -> do { close_in ch; Void }
+  | _ -> failwith "close-input-port: not a port" ];
+
+value close_output_port port =
+  match port with
+  [ Out ch -> do { close_out ch; Void }
+  | _ -> failwith "close-output-port: not a port" ];
