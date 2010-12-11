@@ -180,6 +180,10 @@ and emit = fun
       Printf.printf ")"
     }
   | Let variables inits body -> do {
+    (* FIXME If one of the variables is
+     * marked mutable, then the corresponding
+     * init must be preceded by a `ref', like
+     * above *)
       Printf.printf "(let (";
       let rec loop variables =
         match variables with

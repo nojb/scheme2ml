@@ -3,6 +3,8 @@ value builtins = [
   ("*", Some (0, "Scheme.mul"), [(2, "Scheme.mul2")]);
   ("-", Some (0, "Scheme.sub"), [(2, "Scheme.sub2")]);
   ("eq?", None, [(2, "Scheme.is_eq")]);
+  ("eqv?", None, [(2, "Scheme.is_eqv")]);
+  ("equal?", None, [(2, "Scheme.is_equal")]);
   ("car", None, [(1, "Scheme.car")]);
   ("cdr", None, [(1, "Scheme.cdr")]);
   ("display", None, [(1, "Scheme.display")]);

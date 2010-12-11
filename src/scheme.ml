@@ -1,3 +1,10 @@
+type in_port = {
+  ch : in_channel;
+  peek : mutable option char
+};
+
+type out_port = out_channel;
+
 type t =
   [ Num of Num.num
   | Symbol of string
@@ -8,8 +15,8 @@ type t =
   | Cons of cons
   | Lambda of t -> t
   | Void
-  | In of (ref (option char) * in_channel)
-  | Out of out_channel
+  | In of in_port
+  | Out of out_port
   | Nil ]
 
 and cons = {
@@ -51,10 +58,48 @@ value intern s =
 value is_eq a b =
   if a == b then t else f;
 
-(* match (a, b) with
-  [ (Symbol x, Symbol y) -> if x == y then t else f
-  | (Boolean x, Boolean y) -> if x = y then t else f
-  | _ -> if a == b then t else f ]; *)
+value is_eqv a b =
+  match (a, b) with
+  [ (Symbol a, Symbol b) -> if String.compare a b = 0 then t else f
+  | (Boolean a, Boolean b) -> if a = b then t else f
+  | (Char a, Char b) -> if a = b then t else f
+  | (Nil, Nil) -> t
+  | (Void, Void) -> t
+  | (Cons a, Cons b) -> if a == b then t else f
+  | (Vector a, Vector b) -> if a == b then t else f
+  | (String a, String b) -> if a == b then t else f
+  | (Lambda a, Lambda b) -> if a == b then t else f
+  | (Num a, Num b) -> if Num.eq_num a b then t else f
+  | (In a, In b) -> if a == b then t else f
+  | (Out a, Out b) -> if a == b then t else f
+  | _ -> f ];
+
+value is_equal a b =
+  let rec is_equal_aux a b =
+  match (a, b) with
+  [ (Symbol a, Symbol b) -> String.compare a b = 0
+  | (Boolean a, Boolean b) -> a = b
+  | (Char a, Char b) -> a = b
+  | (Nil, Nil) -> True
+  | (Void, Void) -> True
+  | (Cons a, Cons b) ->
+      is_equal_aux a.car b.car && is_equal_aux a.cdr b.cdr
+  | (Vector a, Vector b) ->
+      let la = Array.length a in
+      let lb = Array.length b in
+      if la <> lb then False
+      else let rec loop i =
+        if i >= la then True
+        else if is_equal_aux a.(i) b.(i) then loop (i+1)
+        else False
+      in loop 0
+  | (String a, String b) -> String.compare a b = 0
+  | (Lambda a, Lambda b) -> a == b
+  | (Num a, Num b) -> Num.eq_num a b
+  | (In a, In b) -> a == b
+  | (Out a, Out b) -> a == b
+  | _ -> False ]
+  in if is_equal_aux a b then t else f;
 
 value rec fold_left f start cons =
   match cons with
@@ -417,7 +462,7 @@ value is_output_port obj =
   [ Out _ -> t
   | _ -> f ];
 
-value std_in : (ref (option char) * in_channel) = (ref None, stdin);
+value std_in = { ch = stdin; peek = None };
 value std_out = stdout;
 
 value current_in = ref std_in;
@@ -434,7 +479,7 @@ value with_input_from_file string thunk =
   [ String string ->
     let old_in = current_in.val in do {
       let ch = open_in string in
-      current_in.val := (ref None, ch);
+      current_in.val := { ch = ch; peek = None };
       let result = apply thunk Nil in
       close_in ch;
       current_in.val := old_in;
@@ -444,7 +489,7 @@ value with_input_from_file string thunk =
 
 value open_input_file filename =
   match filename with
-  [ String filename -> In (ref None, open_in filename)
+  [ String filename -> In {ch = open_in filename; peek = None }
   | _ -> failwith "open-input-file: not a string" ];
 
 value open_output_file filename =
@@ -454,7 +499,7 @@ value open_output_file filename =
 
 value close_input_port port =
   match port with
-  [ In (_, ch) -> do { close_in ch; Void }
+  [ In port -> do { close_in port.ch; Void }
   | _ -> failwith "close-input-port: not a port" ];
 
 value close_output_port port =
