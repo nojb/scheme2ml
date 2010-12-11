@@ -63,6 +63,11 @@ value builtins = [
   ("vector-fill!", None, [(2, "Scheme.vector_fill")]);
   ("char?", None, [(1, "Scheme.is_char")]);
   ("char=?", None, [(1, "Scheme.is_char_eq")]);
+  ("char-alphabetic?", None, [(1, "Scheme.is_char_alphabetic")]);
+  ("char-numeric?", None, [(1, "Scheme.is_char_numeric")]);
+  ("char-whitespace?", None, [(1, "Scheme.is_char_whitespace")]);
+  ("char-upper-case?", None, [(1, "Scheme.is_char_upper_case")]);
+  ("char-lower-case?", None, [(1, "Scheme.is_char_lower_case")]);
   ("char->integer", None, [(1, "Scheme.char_to_integer")]);
   ("integer->char", None, [(1, "Scheme.integer_to_char")]);
   ("string-length", None, [(1, "Scheme.string_length")]);
@@ -82,7 +87,8 @@ value builtins = [
   ("open-input-file", None, [(1, "Scheme.open_input_file")]);
   ("open-output-file", None, [(1, "Scheme.open_output_file")]);
   ("close-input-port", None, [(1, "Scheme.close_input_port")]);
-  ("close-output-port", None, [(1, "Scheme.close_output_port")])
+  ("close-output-port", None, [(1, "Scheme.close_output_port")]);
+  ("error", None, [(1, "Scheme.error")])
 ];
 
 value populate env =

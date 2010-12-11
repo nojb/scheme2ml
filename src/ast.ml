@@ -1,9 +1,4 @@
 module M = Map.Make String;
-(*(struct
-  type t = string;
-  value compare x y =
-    String.compare (String.lowercase x) (String.lowercase y);
-  end);*)
 
 (* mangle : string -> string
  * 
@@ -146,7 +141,7 @@ value rec analyze_program env x =
     Scheme.car = Scheme.Symbol "begin";
     Scheme.cdr = loop x
   } in do {
-    (*Printf.eprintf "DEBUG:\n%s\n%!" (Scheme.to_string x');*)
+    (* Printf.eprintf "DEBUG:\n%s\n%!" (Scheme.to_string x'); *)
     analyze 0 env x'
   }
 
@@ -199,31 +194,82 @@ and analyze_cons qq env car cdr =
   | Scheme.Symbol "or" -> analyze_or qq env cdr
   | _ -> Emit.Application (analyze qq env car) (map_to_list (analyze qq env) cdr) ]
 
-(* and analyze_body qq env cdr =
+and analyze_body qq env cdr =
   let rec loop cdr =
     match cdr with
     [ Scheme.Cons {
         Scheme.car = Scheme.Cons {
-          Scheme.car = Scheme.Symbol s;
+          Scheme.car = Scheme.Symbol "define";
           Scheme.cdr = Scheme.Cons {
             Scheme.car = a;
             Scheme.cdr = b
           }
         };
         cdr = rest
-      } when String.lowercase s = "define" ->
+      } ->
         match a with
         [ Scheme.Cons {
-            Scheme.car = Scheme.Symbol name;
+            Scheme.car = (Scheme.Symbol _ as name);
             Scheme.cdr = args
-          } -> ...
-        | Scheme.Symbol name -> ...
+          } ->
+            let (begin', rest') = loop rest in
+            (Scheme.Cons {
+              Scheme.car = Scheme.Cons {
+                Scheme.car = name;
+                Scheme.cdr = Scheme.Cons {
+                  Scheme.car = Scheme.Cons {
+                    Scheme.car = Scheme.Symbol "lambda";
+                    Scheme.cdr = Scheme.Cons {
+                      Scheme.car = args;
+                      Scheme.cdr = b
+                    }
+                  };
+                  Scheme.cdr = Scheme.Nil
+                }
+              };
+              Scheme.cdr = begin'
+            }, rest')
+        | Scheme.Symbol _ as name ->
+            let (begin', rest') = loop rest in
+            (Scheme.Cons {
+              Scheme.car = Scheme.Cons {
+                Scheme.car = name;
+                Scheme.cdr = b
+              };
+              Scheme.cdr = begin'
+            }, rest')
         | _ -> failwith "bad syntax in (define)" ]
     | Scheme.Cons {
         Scheme.car = Scheme.Cons {
-          Scheme.car = Scheme.Symbol s;
-          Scheme.cdr = Scheme. *)
-
+          Scheme.car = Scheme.Symbol "begin";
+          Scheme.cdr = defs
+        };
+        Scheme.cdr = rest
+      } -> assert False
+        (* let (begin', rest') = loop rest in
+        let rec help defs =
+          match defs with
+          [ Scheme.Cons {
+              Scheme.car = Scheme.Cons {
+                Scheme.car = Scheme.Symbol "define";
+                Scheme.cdr = def
+              };
+              Scheme.cdr = rest
+            } ->
+*)
+    | x -> (Scheme.Nil, x) ]
+  in
+  let (begin, rest) = loop cdr in
+  match begin with
+  [ Scheme.Nil -> Emit.Begin (map_to_list (analyze qq env) rest)
+  | _ ->
+    analyze qq env (Scheme.Cons {
+      Scheme.car = Scheme.Symbol "letrec";
+      Scheme.cdr = Scheme.Cons {
+        Scheme.car = begin;
+        Scheme.cdr = rest
+      }
+    }) ]
 
 and analyze_let_star qq env cdr =
   match cdr with
@@ -289,7 +335,8 @@ and analyze_letrec qq env cdr =
         env variables variables' in
       let inits' = List.map (analyze qq env') inits in
       Emit.Let variables' inits'
-        (Emit.Begin (map_to_list (analyze qq env') body))
+        (analyze_body qq env' body)
+        (* (Emit.Begin (map_to_list (analyze qq env') body)) *)
   | _ -> failwith "bad syntax in (letrec)" ]
 
 and analyze_let qq env cdr =
@@ -322,7 +369,8 @@ and analyze_let qq env cdr =
       in let env' = List.fold_left2
         (fun env variable variable' -> M.add variable variable' env) env variables variables'
       in Emit.Let variables' inits
-        (Emit.Begin (map_to_list (analyze qq env') body))
+        (analyze_body qq env' body)
+        (* (Emit.Begin (map_to_list (analyze qq env') body)) *)
   | _ -> failwith "analyze_let: malformed (let)" ]
 
 and analyze_set qq env cdr =
@@ -390,30 +438,31 @@ and analyze_lambda qq env cdr =
   [ Scheme.Cons cons ->
     match cons.Scheme.car with
     [ Scheme.Cons cons' -> (* have argument list *)
-      let rec loop cons' =
-      match (cons'.Scheme.car, cons'.Scheme.cdr) with
-      [ (Scheme.Symbol arg, Scheme.Nil) -> (False, [arg])
-      | (Scheme.Symbol arg, Scheme.Cons cons') ->
-        let (varargs, args) = loop cons' in
-        (varargs, [arg :: args])
-      | (Scheme.Symbol arg, Scheme.Symbol a) -> (True, [arg; a])
-      | _ -> failwith "Ast.analyze_lambda: bad syntax in (lambda)" ]
-      in let (varargs, args) = loop cons' in
-      let args' = List.map (fun arg -> Emit.Variable (ref False) (mangle arg)) args in
-      let env' = List.fold_left2
-        (fun start rest rest' -> M.add rest rest' start) env args args' in
-      Emit.Lambda varargs args'
-        (Emit.Begin (map_to_list (analyze qq env') cons.Scheme.cdr))
+        let rec loop cons' =
+        match (cons'.Scheme.car, cons'.Scheme.cdr) with
+        [ (Scheme.Symbol arg, Scheme.Nil) -> (False, [arg])
+        | (Scheme.Symbol arg, Scheme.Cons cons') ->
+            let (varargs, args) = loop cons' in
+            (varargs, [arg :: args])
+        | (Scheme.Symbol arg, Scheme.Symbol a) -> (True, [arg; a])
+        | _ -> failwith "bad syntax in (lambda)" ]
+          in let (varargs, args) = loop cons' in
+          let args' = List.map (fun arg -> Emit.Variable (ref False) (mangle arg)) args in
+          let env' = List.fold_left2
+            (fun start rest rest' -> M.add rest rest' start) env args args' in
+          Emit.Lambda varargs args'
+            (analyze_body qq env' cons.Scheme.cdr)
+            (* (Emit.Begin (map_to_list (analyze qq env') cons.Scheme.cdr)) *)
     | Scheme.Symbol name ->
-      let arg' = Emit.Variable (ref False) (mangle name) in
-      let env' = M.add name arg' env in
-      Emit.Lambda True [arg']
-        (Emit.Begin (map_to_list (analyze qq env') cons.Scheme.cdr))
+        let arg' = Emit.Variable (ref False) (mangle name) in
+        let env' = M.add name arg' env in
+        Emit.Lambda True [arg'] (analyze_body qq env' cons.Scheme.cdr)
+          (* (Emit.Begin (map_to_list (analyze qq env') cons.Scheme.cdr)) *)
     | Scheme.Nil -> (* zero-arity *)
-      Emit.Lambda False []
-        (Emit.Begin (map_to_list (analyze qq env) cons.Scheme.cdr))
-    | _ -> failwith "Ast.analyze_lambda: bad syntax in (lambda)" ]
-  | _ -> failwith "Ast.analyze_lambda: bad syntax in (lambda)" ]
+        Emit.Lambda False [] (analyze_body qq env cons.Scheme.cdr)
+          (* (Emit.Begin (map_to_list (analyze qq env) cons.Scheme.cdr)) *)
+    | _ -> failwith "bad syntax in (lambda)" ]
+  | _ -> failwith "bad syntax in (lambda)" ]
 
 and analyze_alternative qq env cdr =
   match cdr with

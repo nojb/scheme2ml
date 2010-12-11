@@ -579,6 +579,31 @@ value is_char_eq char1 char2 =
   [ (Char char1, Char char2) -> if char1 = char2 then t else f
   | _ -> failwith "char=?: bad arguments" ];
 
+value is_char_alphabetic char =
+  match char with
+  [ Char c -> if 'a' <= c  && c <= 'z' || 'A' <= c && c <= 'Z' then t else f
+  | _ -> failwith "char-alphabetic?: not a char" ];
+
+value is_char_numeric char =
+  match char with
+  [ Char c -> if '0' <= c && c <= '9' then t else f
+  | _ -> failwith "char-numeric?: not a char" ];
+
+value is_char_whitespace char =
+  match char with
+  [ Char c -> if c = ' ' || c = '\t' || c = '\n' || c = '\r' then t else f
+  | _ -> failwith "char-whitespace?: not a char" ];
+
+value is_char_upper_case letter =
+  match letter with
+  [ Char c -> if c <= 'Z' && 'A' <= c then t else f
+  | _ -> failwith "char-upper-case?: not a char" ];
+
+value is_char_lower_case letter =
+  match letter with
+  [ Char c -> if 'a' <= c && c <= 'z' then t else f
+  | _ -> failwith "char-lower-case?: not a char" ];
+
 value char_to_integer char =
   match char with
   [ Char char -> Num (Num.num_of_int (int_of_char char))
@@ -770,3 +795,6 @@ value write_char_to_port char port =
       }
     | _ -> failwith "write-char: not a port" ]
   | _ -> failwith "write-char: not a char" ];
+
+value error obj =
+  failwith ("error: " ^ (to_string obj));
