@@ -268,7 +268,7 @@ and emit = fun
                   Printf.printf "(Scheme.Cons { Scheme.car = ";
                   emit a;
                   Printf.printf "; Scheme.cdr = ";
-                  loop (count+1) b;
+                  loop2 (count+1) b;
                   Printf.printf ")"
                 } ]
             in loop2 0 args

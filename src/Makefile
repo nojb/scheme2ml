@@ -1,16 +1,12 @@
-OBJSOPT = scheme.cmx parser.cmx lexer.cmx emit.cmx \
+OBJS = scheme.cmx parser.cmx lexer.cmx emit.cmx \
 					ast.cmx builtins.cmx s2ml.cmx
-OBJS = scheme.cmo parser.cmo lexer.cmo emit.cmo \
-			 ast.cmo builtins.cmo s2ml.cmo
 CAMLP = camlp5r
 PP = -pp $(CAMLP)
 INCLUDES =
 OCAMLOPT = ocamlopt $(INCLUDES)
-OCAMLC = ocamlc $(INCLUDES)
 OCAMLYACC = menhir
 OCAMLLEX = ocamllex
-LIBS = nums.cma
-LIBSOPT = nums.cmxa
+LIBS = nums.cmxa
 YFLAGS =
 
 simple:
@@ -23,19 +19,13 @@ simple:
 	$(OCAMLOPT) $(PP) -c ast.ml
 	$(OCAMLOPT) $(PP) -c builtins.ml
 	$(OCAMLOPT) $(PP) -c s2ml.ml
-	$(OCAMLOPT) $(LIBSOPT) $(OBJSOPT) -o s2ml.opt
+	$(OCAMLOPT) $(LIBS) $(OBJS) -o s2ml.opt
 
 s2ml.opt: $(OBJSOPT)
 	$(OCAMLOPT) $(LIBSOPT) $(OBJSOPT) -o s2ml.opt
 
-s2ml: $(OBJS)
-	$(OCAMLC) $(LIBS) $(OBJS) -o s2ml
-
 lexer.cmx: lexer.ml parser.cmx
 	$(OCAMLOPT) -c lexer.ml
-
-lexer.cmo: lexer.ml parser.cmo
-	$(OCAMLC) -c lexer.ml
 
 lexer.ml: lexer.mll
 	ocamllex lexer.mll
@@ -43,45 +33,27 @@ lexer.ml: lexer.mll
 parser.cmx: parser.ml parser.mli scheme.cmx
 	$(OCAMLOPT) -c parser.mli parser.ml
 
-parser.cmo: parser.ml parser.mli scheme.cmo
-	$(OCAMLC) -c parser.mli parser.ml
-
 parser.ml parser.mli: parser.mly
 	menhir $(YFLAGS) parser.mly
 
 ast.cmx: ast.ml scheme.cmx emit.cmx
 	$(OCAMLOPT) $(PP) -c ast.ml
 
-ast.cmo: ast.ml scheme.cmo emit.cmo
-	$(OCAMLC) $(PP) -c ast.ml
-
 emit.cmx: emit.ml
 	$(OCAMLOPT) $(PP) -c emit.ml
-
-emit.cmo: emit.ml
-	$(OCAMLC) $(PP) -c emit.ml
 
 scheme.cmx: scheme.ml
 	$(OCAMLOPT) $(PP) -c scheme.ml
 
-scheme.cmo: scheme.ml
-	$(OCAMLC) $(PP) -c scheme.ml
-
 builtins.cmx: builtins.ml ast.cmx emit.cmx
 	$(OCAMLOPT) $(PP) -c builtins.ml
-
-builtins.cmo: builtins.ml ast.cmo emit.cmo
-	$(OCAMLC) $(PP) -c builtins.ml
 
 s2ml.cmx: s2ml.ml ast.cmx emit.cmx builtins.cmx
 	$(OCAMLOPT) $(PP) -c s2ml.ml
 
-s2ml.cmo: s2ml.ml ast.cmo emit.cmo builtins.cmo
-	$(OCAMLC) $(PP) -c s2ml.ml
-
 .PHONY: all clean
 
-all: s2ml s2ml.opt
+all: s2ml.opt
 
 clean:
 	rm -f *.cm[iox]
@@ -90,7 +62,7 @@ clean:
 	rm -f lexer.ml
 
 cleanall: clean
-	rm -f s2ml s2ml.opt
+	rm -f s2ml.opt
 
 # Pretty printing convenience targets
 # 'r' stands for Revised syntax
@@ -127,4 +99,4 @@ scheme_read.cmx: scheme_read.ml lexer.cmx parser.cmx
 
 %.scm: s2ml.opt scheme.cmx scheme_read.cmx
 	./s2ml.opt < $@ | camlp5r pr_r.cmo pr_rp.cmo -impl - > `basename $@ .scm`.ml
-	$(OCAMLOPT) $(PP) $(LIBSOPT) scheme.cmx parser.cmx lexer.cmx scheme_read.cmx `basename $@ .scm`.ml -o `basename $@ .scm`
+	$(OCAMLOPT) $(PP) $(LIBS) scheme.cmx parser.cmx lexer.cmx scheme_read.cmx `basename $@ .scm`.ml -o `basename $@ .scm`

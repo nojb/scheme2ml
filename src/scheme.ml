@@ -101,18 +101,19 @@ value is_equal a b =
   | _ -> False ]
   in if is_equal_aux a b then t else f;
 
+value rec splice lst z =
+  match lst with
+  [ Cons {car=a;cdr=b} ->
+    Cons {car=a;cdr=splice b z}
+  | Nil -> z
+  | _ -> failwith "splice: not a list" ];
+
 value rec fold_left f start cons =
   match cons with
   [ Cons cons ->
     fold_left f (f start cons.car) cons.cdr
   | Nil -> start
   | _ -> failwith "fold-left: not a list" ];
-
-value rec splice lst obj =
-  match lst with
-  [ Cons {car=a;cdr=b} -> Cons{car=a;cdr=splice b obj}
-  | Nil -> obj
-  | _ -> failwith "splice: not a list" ];
 
 value rec map f cons =
   match cons with
