@@ -24,8 +24,12 @@ value num_one = Num.num_of_int 1;
 
 module W = Weak.Make (
   struct
-    type t = string;
-    value equal x y = String.compare x y == 0;
+    type t2 = t;
+    type t = t2;
+    value equal x y =
+      match (x, y) with
+      [ (Symbol s, Symbol t) -> String.compare s t = 0
+      | _ -> False ];
     value hash = Hashtbl.hash;
   end);
 
@@ -38,17 +42,19 @@ value symbols = W.create 10;
  * the definition of eqp below *)
 
 value intern s =
-  try Symbol (W.find symbols s)
+  let s = Symbol s in
+  try W.find symbols s
   with [ Not_found -> do {
-    W.add symbols s;
-    Symbol s
+    W.add symbols s; s
   } ];
 
-value eqp a b =
-  match (a, b) with
+value is_eq a b =
+  if a == b then t else f;
+
+(* match (a, b) with
   [ (Symbol x, Symbol y) -> if x == y then t else f
   | (Boolean x, Boolean y) -> if x = y then t else f
-  | _ -> if a == b then t else f ];
+  | _ -> if a == b then t else f ]; *)
 
 value rec fold_left f start cons =
   match cons with

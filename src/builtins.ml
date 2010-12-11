@@ -2,6 +2,7 @@ value builtins = [
   ("+", Some (0, "Scheme.add"), [(2, "Scheme.add2")]);
   ("*", Some (0, "Scheme.mul"), [(2, "Scheme.mul2")]);
   ("-", Some (0, "Scheme.sub"), [(2, "Scheme.sub2")]);
+  ("eq?", None, [(2, "Scheme.is_eq")]);
   ("car", None, [(1, "Scheme.car")]);
   ("cdr", None, [(1, "Scheme.cdr")]);
   ("display", None, [(1, "Scheme.display")]);

@@ -267,7 +267,7 @@ and emit = fun
       in do {
         Printf.printf "(%s " impl;
         if arity = 0 then Printf.printf "()"
-        else List.iter emit args;
+        else emit_separated " " args;
         Printf.printf ")"
       }
     }
