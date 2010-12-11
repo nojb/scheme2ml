@@ -79,8 +79,7 @@ s2ml.cmx: s2ml.ml ast.cmx emit.cmx builtins.cmx
 s2ml.cmo: s2ml.ml ast.cmo emit.cmo builtins.cmo
 	$(OCAMLC) $(PP) -c s2ml.ml
 
-.PHONY: all
-.PHONY: clean
+.PHONY: all clean
 
 all: s2ml s2ml.opt
 

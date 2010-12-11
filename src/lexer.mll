@@ -24,11 +24,11 @@ rule token = parse
   {
     FALSE
   }
-  | "#\\space"
+  | "#\\" ['s''S']['p''P']['a''A']['c''C']['e''E']
   {
     CHAR ' '
   }
-  | "#\\newline"
+  | "#\\" ['n''N']['e''E']['w''W']['l''L']['i''I']['n''N']['e''E']
   {
     CHAR '\n'
   }

@@ -31,10 +31,12 @@ value rec emit_quote = fun
     else
       Printf.printf "(Scheme.Num (Num.num_of_string \"%s\"))"
         (Num.string_of_num n)
-  | Scheme.Char char -> Printf.printf "'%s'" (Char.escaped char)
-  | Scheme.String string -> Printf.printf "\"%s\"" (String.escaped string)
+  | Scheme.Char char ->
+      Printf.printf "(Scheme.Char '%s')" (Char.escaped char)
+  | Scheme.String string ->
+      Printf.printf "(Scheme.String \"%s\")" (String.escaped string)
   | Scheme.Cons cons -> do {
-      Printf.printf "(Scheme.cons { Scheme.car = ";
+      Printf.printf "(Scheme.Cons { Scheme.car = ";
       emit_quote cons.Scheme.car;
       Printf.printf "; Scheme.cdr = ";
       emit_quote cons.Scheme.cdr;
@@ -150,12 +152,24 @@ and emit = fun
         [ ([], []) -> Printf.printf "() = () in "
         | ([a], [b]) -> do {
             Printf.printf "%s = " (binding_name a);
+            if binding_mutable a then
+              Printf.printf "ref ("
+            else ();
             emit b;
+            if binding_mutable a then
+              Printf.printf ")"
+            else ();
             Printf.printf " in "
           }
         | ([a :: a'], [b :: b']) -> do {
             Printf.printf "%s = " (binding_name a);
+            if binding_mutable a then
+              Printf.printf "ref ("
+            else ();
             emit b;
+            if binding_mutable a then
+              Printf.printf ")"
+            else ();
             Printf.printf " and ";
             loop a' b'
           }

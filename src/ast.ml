@@ -1,4 +1,8 @@
-module M = Map.Make String;
+module M = Map.Make (struct
+  type t = string;
+  value compare x y =
+    String.compare (String.lowercase x) (String.lowercase y);
+  end);
 
 (* mangle : string -> string
  * 
@@ -12,6 +16,7 @@ module M = Map.Make String;
  * string "__" at the beginning (This takes care for
  * example of the Scheme identifiers that start with
  * uppercase, something forbidden in Ocaml) *)
+
 value mangle s =
   let alphanumeric c =
     (c >= 'a' && c <= 'z') ||
@@ -59,6 +64,7 @@ value mangle s =
  *
  * otherwise, we just take the corresponding scheme expression and tack
  * it in at the end of the sequence. *)
+
 value rec analyze_program env x =
   let rec loop x =
     match x with
