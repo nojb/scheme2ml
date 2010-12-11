@@ -184,7 +184,7 @@ and analyze_cons qq env car cdr =
       [ Scheme.Cons {
           Scheme.car = a;
           Scheme.cdr = Scheme.Nil
-        } -> analyze_quasiquote qq env a
+        } -> analyze_quasiquote (qq+1) env a
       | _ -> failwith "bad syntax in (quasiquote)" ]
     | "if" -> analyze_alternative qq env cdr
     | "let" -> analyze_let qq env cdr 
@@ -516,8 +516,8 @@ and analyze_quasiquote qq env cdr =
         Scheme.cdr = Scheme.Nil
       }
     } when String.lowercase s = "unquote" ->
-      if qq = 0 then
-        analyze (qq+1) env x
+      if qq = 1 then
+        analyze (qq-1) env x
       else
         Emit.Application (Emit.Reference cons)
           [Emit.Quote (Scheme.Symbol "unquote");
@@ -530,7 +530,7 @@ and analyze_quasiquote qq env cdr =
         Scheme.cdr = Scheme.Nil
       }
     } when String.lowercase s = "unquote-splicing" -> 
-      if qq = 0 then
+      if qq = 1 then
         assert False
         (* FIXME Emit.Application (Emit.Reference splice)
           [analyze (qq+1) env x; analyze_quasiquote qq env rest] *)
@@ -539,6 +539,21 @@ and analyze_quasiquote qq env cdr =
           [Emit.Quote (Scheme.Symbol "unquote-splicing");
             Emit.Application (Emit.Reference cons)
               [analyze_quasiquote (qq-1) env x; Emit.Quote Scheme.Nil]]
+  | Scheme.Cons {
+      Scheme.car = Scheme.Symbol s;
+      Scheme.cdr = Scheme.Cons {
+        Scheme.car = x;
+        Scheme.cdr = Scheme.Nil
+      }
+    } when String.lowercase s = "quasiquote" ->
+      if qq = 0 then
+        assert False (* this can't happen! *)
+        (* analyze_quasiquote (qq+1) env x *)
+      else
+        Emit.Application (Emit.Reference cons)
+          [Emit.Quote (Scheme.Symbol "quasiquote");
+            Emit.Application (Emit.Reference cons)
+              [analyze_quasiquote (qq+1) env x; Emit.Quote Scheme.Nil]]
   | Scheme.Cons {Scheme.car=a;Scheme.cdr=b} ->
       Emit.Application (Emit.Reference cons)
         [analyze_quasiquote qq env a; analyze_quasiquote qq env b]
