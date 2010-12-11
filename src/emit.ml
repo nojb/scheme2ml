@@ -244,6 +244,12 @@ and emit = fun
       emit iffalse;
       Printf.printf ")"
     }
+  | Application (Reference (Builtin (Some (0, "Scheme.vector"))
+      [] "vector")) args -> do {
+      Printf.printf "(Scheme.Vector [|";
+      emit_separated ";" args;
+      Printf.printf "|])"
+    }
   | Application (Reference (Builtin (Some (fixed, varargs)) impls name)) args -> do {
       let arity = List.length args in
       try let impl = List.assoc arity impls in do {
