@@ -3,6 +3,7 @@
 
 %token LP RP EOF DOT QUOTE
 %token TRUE FALSE SHARP_LP
+%token QUASIQUOTE UNQUOTE UNQUOTE_SPLICING
 %token <Num.num> INT
 %token <string> NAME
 %token <char> CHAR
@@ -51,6 +52,36 @@ ast:
   {
     Scheme.Cons {
       Scheme.car = Scheme.Symbol "quote";
+      Scheme.cdr = Scheme.Cons {
+        Scheme.car = $2;
+        Scheme.cdr = Scheme.Nil
+      }
+    }
+  }
+  | QUASIQUOTE ast
+  {
+    Scheme.Cons {
+      Scheme.car = Scheme.Symbol "quasiquote";
+      Scheme.cdr = Scheme.Cons {
+        Scheme.car = $2;
+        Scheme.cdr = Scheme.Nil
+      }
+    }
+  }
+  | UNQUOTE ast
+  {
+    Scheme.Cons {
+      Scheme.car = Scheme.Symbol "unquote";
+      Scheme.cdr = Scheme.Cons {
+        Scheme.car = $2;
+        Scheme.cdr = Scheme.Nil
+      }
+    }
+  }
+  | UNQUOTE_SPLICING ast
+  {
+    Scheme.Cons {
+      Scheme.car = Scheme.Symbol "unquote-splicing";
       Scheme.cdr = Scheme.Cons {
         Scheme.car = $2;
         Scheme.cdr = Scheme.Nil

@@ -44,6 +44,18 @@ rule token = parse
   {
     QUOTE
   }
+  | '`'
+  {
+    QUASIQUOTE
+  }
+  | ",@"
+  {
+    UNQUOTE_SPLICING
+  }
+  | ','
+  {
+    UNQUOTE
+  }
   | '.'
   {
     DOT

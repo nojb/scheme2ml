@@ -108,6 +108,12 @@ value rec fold_left f start cons =
   | Nil -> start
   | _ -> failwith "fold-left: not a list" ];
 
+value rec splice lst obj =
+  match lst with
+  [ Cons {car=a;cdr=b} -> Cons{car=a;cdr=splice b obj}
+  | Nil -> obj
+  | _ -> failwith "splice: not a list" ];
+
 value rec map f cons =
   match cons with
   [ Cons cons -> Cons {car = f cons.car; cdr = map f cons.cdr}
