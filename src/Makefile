@@ -10,10 +10,10 @@ LIBS = nums.cmxa
 YFLAGS =
 
 simple:
-	$(OCAMLOPT) $(PP) -c scheme.ml
 	$(OCAMLYACC) parser.mly
-	$(OCAMLOPT) -c parser.mli parser.ml
 	$(OCAMLLEX) lexer.mll
+	$(OCAMLOPT) $(PP) -c scheme.ml
+	$(OCAMLOPT) -c parser.mli parser.ml
 	$(OCAMLOPT) -c lexer.ml
 	$(OCAMLOPT) $(PP) -c emit.ml
 	$(OCAMLOPT) $(PP) -c ast.ml
@@ -21,39 +21,7 @@ simple:
 	$(OCAMLOPT) $(PP) -c s2ml.ml
 	$(OCAMLOPT) $(LIBS) $(OBJS) -o s2ml.opt
 
-s2ml.opt: $(OBJSOPT)
-	$(OCAMLOPT) $(LIBSOPT) $(OBJSOPT) -o s2ml.opt
-
-lexer.cmx: lexer.ml parser.cmx
-	$(OCAMLOPT) -c lexer.ml
-
-lexer.ml: lexer.mll
-	ocamllex lexer.mll
-
-parser.cmx: parser.ml parser.mli scheme.cmx
-	$(OCAMLOPT) -c parser.mli parser.ml
-
-parser.ml parser.mli: parser.mly
-	menhir $(YFLAGS) parser.mly
-
-ast.cmx: ast.ml scheme.cmx emit.cmx
-	$(OCAMLOPT) $(PP) -c ast.ml
-
-emit.cmx: emit.ml
-	$(OCAMLOPT) $(PP) -c emit.ml
-
-scheme.cmx: scheme.ml
-	$(OCAMLOPT) $(PP) -c scheme.ml
-
-builtins.cmx: builtins.ml ast.cmx emit.cmx
-	$(OCAMLOPT) $(PP) -c builtins.ml
-
-s2ml.cmx: s2ml.ml ast.cmx emit.cmx builtins.cmx
-	$(OCAMLOPT) $(PP) -c s2ml.ml
-
-.PHONY: all clean
-
-all: s2ml.opt
+.PHONY: clean simple
 
 clean:
 	rm -f *.cm[iox]

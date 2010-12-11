@@ -32,6 +32,20 @@ to traverse the quoted expression and mangle names!
 
 TODO:
 
-- Case sensitivity
+- mangle to unique names -> eliminate Emit.Let
+- Optimize immutable user calls!!!
+- Case sensitivity DONE
 - Documentation
-- Name mangling
+- Name mangling DONE
+- Floating point numbers
+- quasiquotation in vectors
+- general io routines
+- defines!
+
+IT DOESNT HAVE:
+
+- eval
+- load
+- transcript
+- call/cc (?)
+- quasiquotation in vectors (not yet)

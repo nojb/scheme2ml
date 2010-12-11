@@ -379,7 +379,7 @@ value rec for_each f lists =
   in match join1 0 lists with
   [ (Nil, Nil) -> Void
   | (heads, tails) -> do {
-      apply f heads;
+      ignore (apply f heads);
       for_each f tails
     } ];
 
@@ -496,6 +496,50 @@ value vector_ref vector k =
     | _ -> failwith "vector-ref: bad index" ]
   | _ -> failwith "vector-ref: not a vector" ];
 
+value vector_set vector k obj =
+  match vector with
+  [ Vector vector ->
+    match k with
+    [ Num n -> if Num.is_integer_num n then do {
+        vector.(Num.int_of_num n) := obj;
+        Void
+      } else failwith "vector-set!: not an integer"
+    | _ -> failwith "vector-set!: bad index" ]
+  | _ -> failwith "vector-set!: not a vector" ];
+
+value vector_to_list vector =
+  match vector with
+  [ Vector vector ->
+    let l = Array.length vector in
+    let rec loop i =
+      if i >= l then Nil
+      else Cons { car = vector.(i); cdr = loop (i+1) }
+    in loop 0
+  | _ -> failwith "vector->list: not a vector" ];
+
+value list_to_vector list =
+  let rec loop l list =
+    match list with
+    [ Nil -> Array.create l Nil
+    | Cons {
+        car = a;
+        cdr = b
+      } ->
+        let arr = loop (l+1) b in do {
+          arr.(l) := a;
+          arr
+        }
+    | _ -> failwith "list->vector: not a list" ]
+  in Vector (loop 0 list);
+
+value vector_fill vector fill =
+  match vector with
+  [ Vector vector -> do {
+      Array.fill vector 0 (Array.length vector) fill;
+      Void
+    }
+  | _ -> failwith "vector-fill!: not a vector" ];
+
 value is_char obj =
   match obj with
   [ Char _ -> t
@@ -557,6 +601,21 @@ value substring string start finish =
       | _ -> failwith "substring: end is not an integer" ]
     | _ -> failwith "substring: start is not an integer" ]
   | _ -> failwith "substring: string is not a string" ];
+
+value string_append strings =
+  let rec loop strings =
+    match strings with
+    [ Nil -> ""
+    | Cons {
+        car = a;
+        cdr = b
+      } ->
+        match a with
+        [ String string ->
+          string ^ (loop b)
+        | _ -> failwith "string-append: not a list of strings" ]
+    | _ -> failwith "string-append: not a list of strings" ]
+  in String (loop strings);
 
 value string_to_list string =
   match string with
@@ -652,15 +711,33 @@ value close_output_port port =
   | _ -> failwith "close-output-port: not a port" ];
 
 value newline () = do {
-  output_char std_out '\n';
+  output_char current_out.val '\n';
   Void
 };
 
 value newline_to_port port =
   match port with
   [ Out port -> do {
-      output_char current_out.val '\n';
+      output_char port '\n';
       Void
     }
   | _ -> failwith "newline: not a port" ];
 
+value write_char char =
+  match char with
+  [ Char char -> do {
+      output_char current_out.val char;
+      Void
+    }
+  | _ -> failwith "write-char: not a char" ];
+
+value write_char_to_port char port =
+  match char with
+  [ Char char ->
+    match port with
+    [ Out port -> do {
+        output_char port char;
+        Void
+      }
+    | _ -> failwith "write-char: not a port" ]
+  | _ -> failwith "write-char: not a char" ];

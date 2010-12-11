@@ -22,7 +22,10 @@ value builtins = [
   (">", Some (2, "Scheme.gt"), []);
   ("<=", Some (2, "Scheme.le"), []);
   (">=", Some (2, "Scheme.ge"), []);
-  ("newline", None, [(0, "Scheme.newline");(1, "Scheme.newline_to_port")]);
+  ("newline", None,
+    [(0, "Scheme.newline");(1, "Scheme.newline_to_port")]);
+  ("write-char", None,
+    [(1, "Scheme.write_char"); (2, "Scheme.write_char_to_port")]);
   ("read", None, [(0, "Scheme_read.read")]);
   ("number->string", None, [(1, "Scheme.number_to_string")]);
   ("boolean?", None, [(1, "Scheme.is_boolean")]);
@@ -48,6 +51,10 @@ value builtins = [
   ("vector", Some (0, "Scheme.vector"), []);
   ("vector-length", None, [(1, "Scheme.vector_length")]);
   ("vector-ref", None, [(2, "Scheme.vector_ref")]);
+  ("vector-set!", None, [(3, "Scheme.vector_set")]);
+  ("vector->list", None, [(1, "Scheme.vector_to_list")]);
+  ("list->vector", None, [(1, "Scheme.list_to_vector")]);
+  ("vector-fill!", None, [(2, "Scheme.vector_fill")]);
   ("char?", None, [(1, "Scheme.is_char")]);
   ("char=?", None, [(1, "Scheme.is_char_eq")]);
   ("char->integer", None, [(1, "Scheme.char_to_integer")]);
@@ -56,6 +63,7 @@ value builtins = [
   ("string-ref", None, [(1, "Scheme.string_ref")]);
   ("string-set!", None, [(3, "Scheme.string_set")]);
   ("substring", None, [(3, "Scheme.substring")]);
+  ("string-append", Some (0, "Scheme.string_append"), []);
   ("string->list", None, [(1, "Scheme.string_to_list")]);
   ("list->string", None, [(1, "Scheme.list_to_string")]);
   ("string-copy", None, [(1, "Scheme.string_copy")]);
