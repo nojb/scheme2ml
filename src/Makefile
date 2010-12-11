@@ -4,12 +4,26 @@ OBJS = scheme.cmo parser.cmo lexer.cmo emit.cmo \
 			 ast.cmo builtins.cmo s2ml.cmo
 CAMLP = camlp5r
 PP = -pp $(CAMLP)
-INCLUDES = -I /usr/local/lib/ocaml
+INCLUDES =
 OCAMLOPT = ocamlopt $(INCLUDES)
 OCAMLC = ocamlc $(INCLUDES)
+OCAMLYACC = menhir
+OCAMLLEX = ocamllex
 LIBS = nums.cma
 LIBSOPT = nums.cmxa
 YFLAGS =
+
+simple:
+	$(OCAMLOPT) $(PP) -c scheme.ml
+	$(OCAMLYACC) parser.mly
+	$(OCAMLOPT) -c parser.mli parser.ml
+	$(OCAMLLEX) lexer.mll
+	$(OCAMLOPT) -c lexer.ml
+	$(OCAMLOPT) $(PP) -c emit.ml
+	$(OCAMLOPT) $(PP) -c ast.ml
+	$(OCAMLOPT) $(PP) -c builtins.ml
+	$(OCAMLOPT) $(PP) -c s2ml.ml
+	$(OCAMLOPT) $(LIBSOPT) $(OBJSOPT) -o s2ml.opt
 
 s2ml.opt: $(OBJSOPT)
 	$(OCAMLOPT) $(LIBSOPT) $(OBJSOPT) -o s2ml.opt

@@ -171,6 +171,10 @@ value is_boolean = fun
   [ Boolean _ -> t
   | _ -> f ];
 
+value _not obj =
+  if is_true obj then f
+  else t;
+
 value is_pair = fun
   [ Cons _ -> t
   | _ -> f ];
@@ -209,9 +213,61 @@ value rec append lists =
   | Nil -> Nil
   | _ -> failwith "append: not a list" ];
 
+value reverse list =
+  let rec loop list reversed =
+    match list with
+    [ Nil -> reversed
+    | Cons cons ->
+      loop cons.cdr (Cons {car = cons.car; cdr = reversed})
+    | _ -> failwith "reverse: not a list" ]
+  in loop list Nil;
+
+value to_int string k =
+  match k with
+  [ Num n ->
+    if Num.is_integer_num n then
+      let i = Num.big_int_of_num n in
+      if Big_int.is_int_big_int i then
+        Big_int.int_of_big_int i
+      else
+        failwith (string ^ ": not an int")
+    else
+      failwith (string ^ ": not an int")
+  | _ -> failwith (string ^ ": not an int") ];
+
+value list_tail list k =
+  let k = to_int "list-tail" k in
+  let rec loop list k =
+    if k = 0 then list
+    else match list with
+    [ Cons cons -> loop cons.cdr (k-1)
+    | Nil -> failwith "list-tail: list too short"
+    | _ -> failwith "list-tail: not a list" ]
+  in loop list k;
+
+value list_ref list k =
+  let k = to_int "list-ref" k in
+  let rec loop list k =
+    match list with
+    [ Cons cons -> if k = 0 then cons.car else loop cons.cdr (k-1)
+    | Nil -> failwith "list-ref: list too short"
+    | _ -> failwith "list-ref: not a list" ]
+  in loop list k;
+
 value is_symbol = fun
   [ Symbol _ -> t
   | _ -> f ];
+
+value symbol_to_string symbol =
+  match symbol with
+  [ Symbol symbol -> String (String.copy symbol)
+  (* just in case -- otherwise, we have to consider having immutable strings *)
+  | _ -> failwith "symbol->string: not a symbol" ];
+
+value string_to_symbol string =
+  match string with
+  [ String string -> intern (String.copy string)
+  | _ -> failwith "string->symbol: not a string" ];
 
 value is_vector = fun
   [ Vector _ -> t
