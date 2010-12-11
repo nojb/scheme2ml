@@ -166,21 +166,25 @@ and map_to_list f = fun
 
 and analyze_cons env car cdr =
   match car with
-  [ Scheme.Symbol "begin" -> Emit.Begin (map_to_list (analyze env) cdr)
-  | Scheme.Symbol "lambda" -> analyze_lambda env cdr
-  | Scheme.Symbol "define" -> analyze_define env cdr
-  | Scheme.Symbol "set!" -> analyze_set env cdr
-  | Scheme.Symbol "quote" ->
-    match cdr with
-    [ Scheme.Cons {
-        Scheme.car = a;
-        Scheme.cdr = Scheme.Nil
-      } -> Emit.Quote a
-    | _ -> failwith "quote: bad syntax" ]
-  | Scheme.Symbol "if" -> analyze_alternative env cdr
-  | Scheme.Symbol "let" -> analyze_let env cdr 
-  | Scheme.Symbol "let*" -> analyze_let_star env cdr
-  | Scheme.Symbol "letrec" -> analyze_letrec env cdr
+  [ Scheme.Symbol s ->
+    match String.lowercase s with
+    [ "begin" -> Emit.Begin (map_to_list (analyze env) cdr)
+    | "lambda" -> analyze_lambda env cdr
+    | "define" -> analyze_define env cdr
+    | "set!" -> analyze_set env cdr
+    | "quote" ->
+      match cdr with
+      [ Scheme.Cons {
+          Scheme.car = a;
+          Scheme.cdr = Scheme.Nil
+        } -> Emit.Quote a
+      | _ -> failwith "bad syntax in (quote)" ]
+    | "if" -> analyze_alternative env cdr
+    | "let" -> analyze_let env cdr 
+    | "let*" -> analyze_let_star env cdr
+    | "letrec" -> analyze_letrec env cdr
+    | "cond" -> analyze_cond env cdr
+    | _ -> Emit.Application (analyze env car) (map_to_list (analyze env) cdr) ]
   | _ -> Emit.Application (analyze env car) (map_to_list (analyze env) cdr) ]
 
 and analyze_let_star env cdr =
@@ -392,5 +396,56 @@ and analyze_alternative env cdr =
       }
     } -> Emit.If (analyze env condition) (analyze env iftrue)
       (analyze env iffalse)
-  | _ -> failwith "Ast.analyze_alternative: bad syntax in (if)" ];
+  | _ -> failwith "Ast.analyze_alternative: bad syntax in (if)" ]
 
+and analyze_cond env cdr =
+  let rec loop clauses =
+    match clauses with
+    [ Scheme.Cons { (* last clause *)
+        Scheme.car = Scheme.Cons {
+          Scheme.car = Scheme.Symbol s;
+          Scheme.cdr = expressions
+        };
+        Scheme.cdr = Scheme.Nil
+      } when String.lowercase s = "else" ->
+        Emit.Begin (map_to_list (analyze env) expressions)
+    | Scheme.Cons {
+        Scheme.car = clause1;
+        Scheme.cdr = clauses
+      } -> analyze_clause clause1 clauses
+    | Scheme.Nil -> Emit.Quote Scheme.Void
+    | _ -> failwith "bad syntax in (cond)" ]
+  and analyze_clause clause1 clauses =
+    match clause1 with
+    [ Scheme.Cons {
+        Scheme.car = test;
+        Scheme.cdr = Scheme.Nil
+      } ->
+        let v = Emit.Variable (ref False) "test" in
+        Emit.Let [v] [analyze env test]
+          (Emit.If (Emit.Reference v) (Emit.Reference v)
+            (loop clauses))
+    | Scheme.Cons {
+        Scheme.car = test;
+        Scheme.cdr = Scheme.Cons {
+          Scheme.car = Scheme.Symbol "=>";
+          Scheme.cdr = Scheme.Cons {
+            Scheme.car = expression;
+            Scheme.cdr = Scheme.Nil
+          }
+        }
+      } ->
+        let v = Emit.Variable (ref False) "test" in
+        Emit.Let [v] [analyze env test]
+          (Emit.If (Emit.Reference v)
+            (Emit.Application (analyze env expression) [Emit.Reference v])
+            (loop clauses))
+    | Scheme.Cons {
+        Scheme.car = test;
+        Scheme.cdr = expressions
+      } ->
+        Emit.If (analyze env test)
+          (Emit.Begin (map_to_list (analyze env) expressions))
+          (loop clauses)
+    | _ -> failwith "bad syntax in (cond)" ]
+  in loop cdr;

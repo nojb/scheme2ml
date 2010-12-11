@@ -161,6 +161,34 @@ value sub args =
   | Nil -> Num num_zero
   | _ -> failwith "-: bad arguments" ];
 
+value cmp_nums name cmp z1 z2 rest =
+  match (z1, z2) with
+  [ (Num z1, Num z2) ->
+    let rec loop last rest =
+      match rest with
+      [ Nil -> t
+      | Cons { car = Num a; cdr = rest } ->
+          if cmp last a then loop a rest
+          else f
+      | _ -> failwith (name ^ ": not numbers") ]
+    in if cmp z1 z2 then loop z2 rest else f
+  | _ -> failwith (name ^ ": not numbers") ];
+
+value lt z1 z2 rest =
+  cmp_nums "<" Num.lt_num z1 z2 rest;
+
+value gt z1 z2 rest =
+  cmp_nums ">" Num.gt_num z1 z2 rest;
+
+value le z1 z2 rest =
+  cmp_nums "<=" Num.le_num z1 z2 rest;
+
+value ge z1 z2 rest =
+  cmp_nums ">=" Num.ge_num z1 z2 rest;
+
+value eq z1 z2 rest =
+  cmp_nums "=" Num.eq_num z1 z2 rest;
+
 value rec to_string = fun
   [ Num n -> Num.string_of_num n
   | Symbol s -> s

@@ -9,6 +9,11 @@ value builtins = [
   ("cdr", None, [(1, "Scheme.cdr")]);
   ("display", None, [(1, "Scheme.display")]);
   ("zero?", None, [(1, "Scheme.is_zero")]);
+  ("=", Some (2, "Scheme.eq"), []);
+  ("<", Some (2, "Scheme.lt"), []);
+  (">", Some (2, "Scheme.gt"), []);
+  ("<=", Some (2, "Scheme.le"), []);
+  (">=", Some (2, "Scheme.ge"), []);
   ("newline", None, [(0, "Scheme.newline")]);
   ("read", None, [(0, "Scheme_read.read")]);
   ("number->string", None, [(1, "Scheme.number_to_string")]);
