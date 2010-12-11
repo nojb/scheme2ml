@@ -26,7 +26,7 @@ program:
 ast:
   NAME
   {
-    Scheme.Symbol $1
+    Scheme.Symbol (String.lowercase $1)
   }
   | TRUE
   {

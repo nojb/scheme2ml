@@ -1,8 +1,9 @@
-module M = Map.Make (struct
+module M = Map.Make String;
+(*(struct
   type t = string;
   value compare x y =
     String.compare (String.lowercase x) (String.lowercase y);
-  end);
+  end);*)
 
 (* mangle : string -> string
  * 
@@ -175,7 +176,7 @@ and analyze_cons qq env car cdr =
     match String.lowercase s with
     [ "begin" -> Emit.Begin (map_to_list (analyze qq env) cdr)
     | "lambda" -> analyze_lambda qq env cdr
-    | "define" -> analyze_define qq env cdr
+    | "define" -> failwith "(define) not allowed here" (* analyze_define qq env cdr *)
     | "set!" -> analyze_set qq env cdr
     | "quote" ->
       match cdr with
@@ -200,6 +201,32 @@ and analyze_cons qq env car cdr =
     | "or" -> analyze_or qq env cdr
     | _ -> Emit.Application (analyze qq env car) (map_to_list (analyze qq env) cdr) ]
   | _ -> Emit.Application (analyze qq env car) (map_to_list (analyze qq env) cdr) ]
+
+(* and analyze_body qq env cdr =
+  let rec loop cdr =
+    match cdr with
+    [ Scheme.Cons {
+        Scheme.car = Scheme.Cons {
+          Scheme.car = Scheme.Symbol s;
+          Scheme.cdr = Scheme.Cons {
+            Scheme.car = a;
+            Scheme.cdr = b
+          }
+        };
+        cdr = rest
+      } when String.lowercase s = "define" ->
+        match a with
+        [ Scheme.Cons {
+            Scheme.car = Scheme.Symbol name;
+            Scheme.cdr = args
+          } -> ...
+        | Scheme.Symbol name -> ...
+        | _ -> failwith "bad syntax in (define)" ]
+    | Scheme.Cons {
+        Scheme.car = Scheme.Cons {
+          Scheme.car = Scheme.Symbol s;
+          Scheme.cdr = Scheme. *)
+
 
 and analyze_let_star qq env cdr =
   match cdr with
@@ -315,6 +342,7 @@ and analyze_set qq env cdr =
       with [ Not_found -> failwith "cannot set! an undefined variable" ]
   | _ -> failwith "bad syntax in set!" ]
 
+  (*
 and analyze_define qq env cdr =
   match cdr with
   [ Scheme.Cons {
@@ -357,6 +385,8 @@ and analyze_define qq env cdr =
       let env' = M.add name v env in
       Emit.Define v (analyze env' exp) ] FIXME *)
   | _ -> failwith "define: bad syntax" ]
+
+  *)
 
 and analyze_lambda qq env cdr =
   match cdr with
@@ -416,11 +446,11 @@ and analyze_cond qq env cdr =
     match clauses with
     [ Scheme.Cons { (* last clause *)
         Scheme.car = Scheme.Cons {
-          Scheme.car = Scheme.Symbol s;
+          Scheme.car = Scheme.Symbol "else";
           Scheme.cdr = expressions
         };
         Scheme.cdr = Scheme.Nil
-      } when String.lowercase s = "else" ->
+      } ->
         Emit.Begin (map_to_list (analyze qq env) expressions)
     | Scheme.Cons {
         Scheme.car = clause1;
@@ -520,12 +550,12 @@ and analyze_quasiquote qq env car splice =
           Emit.Application (Emit.Reference cons)
             [Emit.Quote car; z] ]
   | Scheme.Cons {
-      Scheme.car = Scheme.Symbol s;
+      Scheme.car = Scheme.Symbol "unquote";
       Scheme.cdr = Scheme.Cons {
         Scheme.car = x;
         Scheme.cdr = Scheme.Nil
       }
-    } when String.lowercase s = "unquote" ->
+    } ->
       if qq = 1 then
         match splice with
         [ None -> analyze (qq-1) env x
@@ -539,12 +569,12 @@ and analyze_quasiquote qq env car splice =
               [analyze_quasiquote (qq-1) env x (Some (Emit.Quote Scheme.Nil));
               Emit.Quote Scheme.Nil]]
   | Scheme.Cons {
-      Scheme.car = Scheme.Symbol s;
+      Scheme.car = Scheme.Symbol "unquote-splicing";
       Scheme.cdr = Scheme.Cons {
         Scheme.car = x;
         Scheme.cdr = Scheme.Nil
       }
-    } when String.lowercase s = "unquote-splicing" -> 
+    } ->
       if qq = 1 then
         match splice with
         [ None -> failwith "bad syntax in (unquote-splicing)"
@@ -560,12 +590,12 @@ and analyze_quasiquote qq env car splice =
               [analyze_quasiquote (qq-1) env x (Some (Emit.Quote Scheme.Nil));
               Emit.Quote Scheme.Nil]]
   | Scheme.Cons {
-      Scheme.car = Scheme.Symbol s;
+      Scheme.car = Scheme.Symbol "quasiquote";
       Scheme.cdr = Scheme.Cons {
         Scheme.car = x;
         Scheme.cdr = Scheme.Nil
       }
-    } when String.lowercase s = "quasiquote" ->
+    } ->
       if qq = 0 then
         assert False (* this can't happen! *)
         (* analyze_quasiquote (qq+1) env x *)
