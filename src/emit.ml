@@ -20,8 +20,7 @@ type t =
   | If of t and t and t
   (*| Define of binding and t*)
   | Set of binding and t
-  | Let of list binding and list t and t (* (let ...) and (let* ...) *)
-  | LetRec of list binding and list t and t (* (letrec ...) *)
+  | Let of list binding and list t and t (* (letrec ...) *)
   | Application of t and list t ];
 
 value rec emit_quote = fun
@@ -145,11 +144,12 @@ and emit = fun
       emit exp;
       Printf.printf " ; Scheme.Void })"
     }
-  | LetRec variables inits body -> do {
+  | Let [] [] body -> emit body
+  | Let variables inits body -> do {
       Printf.printf "(let rec ";
       let rec loop variables inits =
         match (variables, inits) with
-        [ ([], []) -> Printf.printf "() = () in "
+        [ ([], []) -> assert False (* Printf.printf "() = () in "*)
         | ([a], [b]) -> do {
             Printf.printf "%s = " (binding_name a);
             if binding_mutable a then
@@ -176,38 +176,6 @@ and emit = fun
         | _ -> assert False ]
       in
       loop variables inits;
-      emit body;
-      Printf.printf ")"
-    }
-  | Let variables inits body -> do {
-    (* FIXME If one of the variables is
-     * marked mutable, then the corresponding
-     * init must be preceded by a `ref', like
-     * above *)
-      Printf.printf "(let (";
-      let rec loop variables =
-        match variables with
-        [ [] -> Printf.printf ") = ("
-        | [a] -> Printf.printf "%s) = (" (binding_name a)
-        | [a :: b] -> do {
-            Printf.printf "%s, " (binding_name a);
-            loop b
-        } ]
-      in
-      loop variables;
-      let rec loop inits =
-        match inits with
-        [ [] -> Printf.printf ") in "
-        | [a] -> do {
-            emit a;
-            Printf.printf ") in "
-          }
-        | [a :: b] -> do {
-            emit a;
-            Printf.printf ", ";
-            loop b
-        } ]
-      in loop inits;
       emit body;
       Printf.printf ")"
     }

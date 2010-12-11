@@ -17,7 +17,11 @@ module M = Map.Make (struct
  * example of the Scheme identifiers that start with
  * uppercase, something forbidden in Ocaml) *)
 
+value mangle_count = ref 0;
+
 value mangle s =
+  let count = mangle_count.val in do {
+    mangle_count.val := mangle_count.val + 1;
   let alphanumeric c =
     (c >= 'a' && c <= 'z') ||
     (c >= 'A' && c <= 'Z') ||
@@ -34,7 +38,8 @@ value mangle s =
     if alphanumeric c then (String.make 1 c)
     else ("_" ^ (string_of_int (Char.code c)))
   in
-  String.concat "" ["__" :: List.map mangle_char (string_to_list s)];
+  String.concat "" ["_" ^ (string_of_int count) ^ "_" ::
+    List.map mangle_char (string_to_list s)]};
 
 (* analyze_program : Emit.binding M.t -> Scheme.t -> Emit.t
  *
@@ -259,7 +264,7 @@ and analyze_letrec qq env cdr =
         (fun env variable variable' -> M.add variable variable' env)
         env variables variables' in
       let inits' = List.map (analyze qq env') inits in
-      Emit.LetRec variables' inits'
+      Emit.Let variables' inits'
         (Emit.Begin (map_to_list (analyze qq env') body))
   | _ -> failwith "bad syntax in (letrec)" ]
 
