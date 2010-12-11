@@ -115,12 +115,6 @@ value rec fold_left f start cons =
   | Nil -> start
   | _ -> failwith "fold-left: not a list" ];
 
-value rec map f cons =
-  match cons with
-  [ Cons cons -> Cons {car = f cons.car; cdr = map f cons.cdr}
-  | Nil -> Nil
-  | _ -> failwith "map: not a list" ];
-
 value add2 obj1 obj2 =
   match obj1 with
   [ Num n ->
@@ -314,6 +308,48 @@ value set_cdr_bang pair obj =
 value is_null = fun
   [ Nil -> t
   | _ -> f ];
+
+value rec map f lists =
+  let rec join1 at_nil lists =
+    match lists with
+    [ Nil -> (Nil, Nil)
+    | Cons {
+        car = Cons {
+          car = a;
+          cdr = b
+        };
+        cdr = b'
+      } ->
+        if at_nil < 0 then
+          failwith "map: lists not of the same length"
+        else
+          let (heads, tails) = join1 1 b' in
+          (Cons {car = a; cdr = heads}, Cons {car = b; cdr = tails})
+    | Cons {
+        car = Nil;
+        cdr = z
+      } ->
+        if at_nil > 0 then
+          failwith "map: lists not of the same length"
+        else
+          join1 (-1) z
+    | _ -> failwith "map: not a list of lists" ]
+  in match join1 0 lists with
+  [ (Nil, Nil) -> Nil
+  | (heads, tails) ->
+      Cons {
+        car = apply f heads;
+        cdr = map f tails } ];
+
+value rec map1 f cons =
+  match cons with
+  [ Cons cons ->
+      Cons {
+        car = apply f (Cons {car = cons.car; cdr = Nil});
+        cdr = map f cons.cdr
+      }
+  | Nil -> Nil
+  | _ -> failwith "map: not a list" ];
 
 value rec is_list = fun
   [ Cons cons -> is_list cons.cdr

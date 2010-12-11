@@ -255,23 +255,27 @@ and emit = fun
       try let impl = List.assoc arity impls in do {
         Printf.printf "(%s " impl;
         if arity = 0 then Printf.printf "()"
-        else List.iter emit args;
+        else emit_separated " " args;
         Printf.printf ")"
       } with [ Not_found -> do {
         Printf.printf "(%s " varargs;
         let rec loop count args =
           if count > fixed then
-            let rec loop2 count args =
+            let rec loop2 args =
               match args with
-              [ [] -> Printf.printf "Scheme.Nil %s" (String.make count '}')
+              [ [] -> Printf.printf "Scheme.Nil"
               | [a :: b] -> do {
-                  Printf.printf "(Scheme.Cons { Scheme.car = ";
+                  Printf.printf "Scheme.Cons { Scheme.car = ";
                   emit a;
                   Printf.printf "; Scheme.cdr = ";
-                  loop2 (count+1) b;
-                  Printf.printf ")"
+                  loop2 b;
+                  Printf.printf "}"
                 } ]
-            in loop2 0 args
+            in do {
+              Printf.printf "(";
+              loop2 args;
+              Printf.printf ")"
+            }
           else match args with
           [ [] -> failwith (name ^ ": bad arity")
           | [a :: b] -> do {
@@ -296,51 +300,19 @@ and emit = fun
         Printf.printf ")"
       }
     }
-
-    (*let rec loop rem rest =
-      if rem = 0 then
-        if arity < 0 then do {
-          Printf.printf "(";
-          let rec loop acc rest =
-            match rest with
-            [ [] -> Printf.printf "Scheme.Nil %s" (String.make acc '}')
-            | [a :: b] -> do {
-                Printf.printf "Scheme.Cons { Scheme.car = ";
-                (emit a);
-                Printf.printf "; Scheme.cdr = ";
-                (loop (acc+1) b)
-              } ]
-          in loop 0 rest;
-          Printf.printf ")"
-        } else if List.length rest > 0 then
-          failwith (name ^ ": bad arity")
-        else ()
-      else match rest with
-      [ [a :: b] -> do {
-          emit a;
-          Printf.printf " ";
-          loop (rem-1) b
-        }
-      | [] -> failwith (name ^ ": bad arity") ]
-    in do {
-      Printf.printf "(%s " name;
-      loop (if arity >= 0 then arity else -arity-1) args;
-      if (arity = 0) then Printf.printf "()"
-      else ();
-      Printf.printf ")"
-    }*)
   | Application f args -> do {
       Printf.printf "(Scheme.apply ";
       emit f;
       Printf.printf "(";
-      let rec loop acc args =
+      let rec loop args =
         match args with
-        [ [] -> Printf.printf "Scheme.Nil %s" (String.make acc '}')
+        [ [] -> Printf.printf "Scheme.Nil"
         | [a :: b] -> do {
             Printf.printf "Scheme.Cons { Scheme.car = ";
             (emit a);
             Printf.printf "; Scheme.cdr = ";
-            (loop (acc+1) b)
+            (loop b);
+            Printf.printf "}"
           } ]
-      in loop 0 args; Printf.printf "))"
+      in loop args; Printf.printf "))"
     } ];

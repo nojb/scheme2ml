@@ -32,6 +32,7 @@ value builtins = [
   ("set-car!", None, [(2, "Scheme.set_car_bang")]);
   ("set-cdr!", None, [(2, "Scheme.set_cdr_bang")]);
   ("null?", None, [(1, "Scheme.is_null")]);
+  ("map", Some (1, "Scheme.map"), [(2, "Scheme.map1")]);
   ("list?", None, [(1, "Scheme.is_list")]);
   ("list", Some (0, "Scheme.list"), []);
   ("length", None, [(1, "Scheme.length")]);

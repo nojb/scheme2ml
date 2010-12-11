@@ -576,6 +576,8 @@ and analyze_quasiquote qq env car splice =
       | Some z ->
           Emit.Application (Emit.Reference cons)
             [analyze_quasiquote qq env a (Some (analyze_quasiquote qq env b None)); z]]
+  | Scheme.Vector vec ->
+      failwith "unquote-splicing in vectors not (yet) supported"
   (*| Scheme.Vector vec ->
       Emit.Application (Emit.Reference vector)
         (List.map (analyze_quasiquote qq env) (Array.to_list vec))*)
