@@ -225,9 +225,11 @@ value apply f args =
   [ Lambda f -> f args
   | _ -> failwith "apply: not a function" ];
 
-value is_true = fun
+value is_true x =
+  not (x == f);
+  (* fun
   [ Boolean False -> False
-  | _ -> True ];
+  | _ -> True ]; *)
 
 value zerop = fun
   [ Num n -> if Num.eq_num n num_zero then t else f
@@ -341,16 +343,6 @@ value rec map f lists =
         car = apply f heads;
         cdr = map f tails } ];
 
-(*value rec map1 f cons =
-  match cons with
-  [ Cons cons ->
-      Cons {
-        car = apply f (Cons {car = cons.car; cdr = Nil});
-        cdr = map f cons.cdr
-      }
-  | Nil -> Nil
-  | _ -> failwith "map: not a list" ];*)
-
 value rec for_each f lists =
   let rec join1 at_nil lists =
     match lists with
@@ -451,6 +443,43 @@ value list_ref list k =
     | Nil -> failwith "list-ref: list too short"
     | _ -> failwith "list-ref: not a list" ]
   in loop list k;
+
+value rec mem name cmp obj list =
+  match list with
+  [ Cons cons ->
+    if is_true (cmp obj cons.car) then list
+    else mem name cmp obj cons.cdr
+  | Nil -> f
+  | _ -> failwith (name ^ ": not a list") ];
+
+value memq =
+  mem "memq" is_eq;
+
+value memv =
+  mem "memv" is_eqv;
+
+value member =
+  mem "member" is_equal;
+
+value rec ass name cmp obj alist =
+  match alist with
+  [ Cons {
+      car = (Cons cons as z);
+      cdr = rest
+    } ->
+      if is_true (cmp obj cons.car) then z
+      else ass name cmp obj rest
+  | Nil -> f
+  | _ -> failwith (name ^ ": not an alist") ];
+
+value assq =
+  ass "assq" is_eq;
+
+value assv =
+  ass "assv" is_eqv;
+
+value assoc =
+  ass "assoc" is_equal;
 
 value is_symbol = fun
   [ Symbol _ -> t

@@ -44,6 +44,12 @@ value builtins = [
   ("reverse", None, [(1, "Scheme.reverse")]);
   ("list-tail", None, [(2, "Scheme.list_tail")]);
   ("list-ref", None, [(2, "Scheme.list_ref")]);
+  ("memq", None, [(2, "Scheme.memq")]);
+  ("memv", None, [(2, "Scheme.memv")]);
+  ("member", None, [(2, "Scheme.member")]);
+  ("assq", None, [(2, "Scheme.assq")]);
+  ("assv", None, [(2, "Scheme.assv")]);
+  ("assoc", None, [(2, "Scheme.assoc")]);
   ("symbol?", None, [(1, "Scheme.is_symbol")]);
   ("symbol->string", None, [(1, "Scheme.symbol_to_string")]);
   ("string->symbol", None, [(1, "Scheme.string_to_symbol")]);

@@ -506,7 +506,7 @@ and analyze_or qq env cdr =
 and analyze_quasiquote qq env car splice =
   let splic = Emit.Builtin None [(2, "Scheme.splice")] "splice" in
   let cons = Emit.Builtin None [(2, "Scheme.cons")] "cons" in
-  let vector = Emit.Builtin (Some (0, "Scheme.vector")) [] "vector" in
+  (* let vector = Emit.Builtin (Some (0, "Scheme.vector")) [] "vector" in *)
   match car with
   [ Scheme.Nil
   | Scheme.Num _
@@ -581,7 +581,7 @@ and analyze_quasiquote qq env car splice =
       | Some z ->
           Emit.Application (Emit.Reference cons)
             [analyze_quasiquote qq env a (Some (analyze_quasiquote qq env b None)); z]]
-  | Scheme.Vector vec ->
+  | Scheme.Vector _ ->
       failwith "unquote-splicing in vectors not (yet) supported"
   (*| Scheme.Vector vec ->
       Emit.Application (Emit.Reference vector)
