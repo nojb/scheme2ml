@@ -571,7 +571,11 @@ and analyze_quasiquote qq env car splice =
               [analyze_quasiquote (qq+1) env x (Some (Emit.Quote Scheme.Nil));
               Emit.Quote Scheme.Nil]]
   | Scheme.Cons {Scheme.car=a;Scheme.cdr=b} ->
-      analyze_quasiquote qq env a (Some (analyze_quasiquote qq env b None))
+      match splice with
+      [ None -> analyze_quasiquote qq env a (Some (analyze_quasiquote qq env b None))
+      | Some z ->
+          Emit.Application (Emit.Reference cons)
+            [analyze_quasiquote qq env a (Some (analyze_quasiquote qq env b None)); z]]
   (*| Scheme.Vector vec ->
       Emit.Application (Emit.Reference vector)
         (List.map (analyze_quasiquote qq env) (Array.to_list vec))*)
