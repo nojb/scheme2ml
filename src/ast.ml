@@ -172,34 +172,31 @@ and map_to_list f = fun
 
 and analyze_cons qq env car cdr =
   match car with
-  [ Scheme.Symbol s ->
-    match String.lowercase s with
-    [ "begin" -> Emit.Begin (map_to_list (analyze qq env) cdr)
-    | "lambda" -> analyze_lambda qq env cdr
-    | "define" -> failwith "(define) not allowed here" (* analyze_define qq env cdr *)
-    | "set!" -> analyze_set qq env cdr
-    | "quote" ->
-      match cdr with
-      [ Scheme.Cons {
-          Scheme.car = a;
-          Scheme.cdr = Scheme.Nil
-        } -> Emit.Quote a
-      | _ -> failwith "bad syntax in (quote)" ]
-    | "quasiquote" ->
-      match cdr with
-      [ Scheme.Cons {
-          Scheme.car = a;
-          Scheme.cdr = Scheme.Nil
-        } -> analyze_quasiquote (qq+1) env a None
-      | _ -> failwith "bad syntax in (quasiquote)" ]
-    | "if" -> analyze_alternative qq env cdr
-    | "let" -> analyze_let qq env cdr 
-    | "let*" -> analyze_let_star qq env cdr
-    | "letrec" -> analyze_letrec qq env cdr
-    | "cond" -> analyze_cond qq env cdr
-    | "and" -> analyze_and qq env cdr
-    | "or" -> analyze_or qq env cdr
-    | _ -> Emit.Application (analyze qq env car) (map_to_list (analyze qq env) cdr) ]
+  [ Scheme.Symbol "begin" -> Emit.Begin (map_to_list (analyze qq env) cdr)
+  | Scheme.Symbol "lambda" -> analyze_lambda qq env cdr
+  | Scheme.Symbol "define" -> failwith "(define) not allowed here" (* analyze_define qq env cdr *)
+  | Scheme.Symbol "set!" -> analyze_set qq env cdr
+  | Scheme.Symbol "quote" ->
+    match cdr with
+    [ Scheme.Cons {
+        Scheme.car = a;
+        Scheme.cdr = Scheme.Nil
+      } -> Emit.Quote a
+    | _ -> failwith "bad syntax in (quote)" ]
+  | Scheme.Symbol "quasiquote" ->
+    match cdr with
+    [ Scheme.Cons {
+        Scheme.car = a;
+        Scheme.cdr = Scheme.Nil
+      } -> analyze_quasiquote (qq+1) env a None
+    | _ -> failwith "bad syntax in (quasiquote)" ]
+  | Scheme.Symbol "if" -> analyze_alternative qq env cdr
+  | Scheme.Symbol "let" -> analyze_let qq env cdr 
+  | Scheme.Symbol "let*" -> analyze_let_star qq env cdr
+  | Scheme.Symbol "letrec" -> analyze_letrec qq env cdr
+  | Scheme.Symbol "cond" -> analyze_cond qq env cdr
+  | Scheme.Symbol "and" -> analyze_and qq env cdr
+  | Scheme.Symbol "or" -> analyze_or qq env cdr
   | _ -> Emit.Application (analyze qq env car) (map_to_list (analyze qq env) cdr) ]
 
 (* and analyze_body qq env cdr =
