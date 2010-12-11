@@ -75,6 +75,8 @@ clean:
 	rm -f *.o
 	rm -f parser.ml parser.mli
 	rm -f lexer.ml
+
+cleanall: clean
 	rm -f s2ml s2ml.opt
 
 # Pretty printing convenience targets
@@ -106,3 +108,10 @@ clean:
 
 %.poo.mli: %.mli
 	camlp5o pr_o.cmo pr_op.cmo $<
+
+scheme_read.cmx: scheme_read.ml lexer.cmx parser.cmx
+	$(OCAMLOPT) $(PP) -c scheme_read.ml
+
+%.scm: s2ml.opt scheme.cmx scheme_read.cmx
+	./s2ml.opt < $@ | camlp5r pr_r.cmo pr_rp.cmo -impl - > `basename $@ .scm`.ml
+	$(OCAMLOPT) $(PP) $(LIBSOPT) scheme.cmx parser.cmx lexer.cmx scheme_read.cmx `basename $@ .scm`.ml -o `basename $@ .scm`

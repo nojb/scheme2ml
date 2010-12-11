@@ -7,7 +7,7 @@ value builtins = [
   ("display", None, [(1, "Scheme.display")]);
   ("zero?", None, [(1, "Scheme.is_zero")]);
   ("newline", None, [(0, "Scheme.newline")]);
-  ("read", None, [(0, "Scheme.read")])
+  ("read", None, [(0, "Scheme_read.read")])
 ];
 
 value populate env =

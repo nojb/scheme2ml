@@ -206,6 +206,11 @@ and emit = fun
             "; Scheme.cdr = " ^ (loop (acc+1) b) ]
       in do {
         Printf.printf "%s -> " (loop 0 args);
+        List.iter (fun arg ->
+          if (binding_mutable arg) then
+            Printf.printf "let %s = ref %s in "
+              (binding_name arg) (binding_name arg) else ())
+          args;
         emit body;
         Printf.printf "| _ -> failwith \"incorrect arity\" ]))"
       }
