@@ -319,6 +319,9 @@ value rec is_list = fun
   | Nil -> t
   | _ -> f ];
 
+value list args =
+  args;
+
 value length list =
   let rec loop i list =
     match list with

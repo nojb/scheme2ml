@@ -33,6 +33,7 @@ value builtins = [
   ("set-cdr!", None, [(2, "Scheme.set_cdr_bang")]);
   ("null?", None, [(1, "Scheme.is_null")]);
   ("list?", None, [(1, "Scheme.is_list")]);
+  ("list", Some (0, "Scheme.list"), []);
   ("length", None, [(1, "Scheme.length")]);
   ("append", Some (0, "Scheme.append"), []);
   ("reverse", None, [(1, "Scheme.reverse")]);
