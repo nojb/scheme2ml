@@ -106,7 +106,7 @@ value rec fold_left f start cons =
   [ Cons cons ->
     fold_left f (f start cons.car) cons.cdr
   | Nil -> start
-  | _ -> failwith "fold_left: not a list" ];
+  | _ -> failwith "fold-left: not a list" ];
 
 value rec map f cons =
   match cons with
@@ -234,6 +234,11 @@ value zerop = fun
 
 value is_zero = zerop;
 
+value is_integer obj =
+  match obj with
+  [ Num n -> if Num.is_integer_num n then t else f
+  | _ -> f ];
+
 value car = fun
   [ Cons cons -> cons.car
   | _ -> failwith "car: not a pair" ];
@@ -242,8 +247,36 @@ value cdr = fun
   [ Cons cons -> cons.cdr
   | _ -> failwith "cdr: not a pair" ];
 
+value cadr = fun
+  [ Cons { car = _; cdr = Cons { car = a; cdr = _ }} -> a
+  | _ -> failwith "cadr: bad args" ];
+
+value cddr = fun
+  [ Cons { car = _; cdr = Cons { car = _; cdr = a}} -> a
+  | _ -> failwith "cddr: bad args" ];
+
+value caar = fun
+  [ Cons { car = Cons { car = a; cdr = _}; cdr = _} -> a
+  | _ -> failwith "caar: bad args" ];
+
+value caaar = fun
+  [ Cons{car=Cons{car=Cons{car=a;cdr=_};cdr=_};cdr=_} -> a
+  | _ -> failwith "caaar: bad args" ];
+
+value caddr = fun
+  [ Cons{car=_;cdr=Cons{car=_;cdr=Cons{car=a;cdr=_}}} -> a
+  | _ -> failwith "caddr: bad args" ];
+
+value caadr = fun
+  [ Cons{car=_;cdr=Cons{car=Cons{car=a;cdr=_};cdr=_}} -> a
+  | _ -> failwith "caadr: bad args" ];
+
+value cadddr = fun
+  [ Cons{car=_;cdr=Cons{car=_;cdr=Cons{car=_;cdr=Cons{car=a;cdr=_}}}} -> a
+  | _ -> failwith "cadddr: bad args" ];
+
 value number_to_string = fun
-  [ Num n -> Num.string_of_num n
+  [ Num n -> String (Num.string_of_num n)
   | _ -> failwith "number->string: not a number" ];
 
 value is_boolean = fun
@@ -279,6 +312,14 @@ value rec is_list = fun
   [ Cons cons -> is_list cons.cdr
   | Nil -> t
   | _ -> f ];
+
+value length list =
+  let rec loop i list =
+    match list with
+    [ Nil -> i
+    | Cons cons -> loop (i+1) cons.cdr
+    | _ -> failwith "length: not a list" ]
+  in Num (Num.num_of_int (loop 0 list));
 
 value rec append lists =
   match lists with

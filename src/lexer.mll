@@ -8,7 +8,7 @@ let initial = ['a'-'z''A'-'Z''!''$''%''&''*''/'':''<''=''>''?''^''_''~']
 let identifier = (initial (initial | ['0'-'9'] | ['+''-''.''@'])*) | '+' | '-' | "..."
 
 rule token = parse
-  ['0'-'9']+ as int
+  '-'?['0'-'9']+ as int
   {
     INT (Num.num_of_string int)
   }

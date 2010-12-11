@@ -27,7 +27,7 @@ type t =
 value rec emit_quote = fun
   [ Scheme.Num n ->
     if Num.eq_num n (Num.num_of_int (Num.int_of_num n)) then
-      Printf.printf "(Scheme.Num (Num.num_of_int %d))" (Num.int_of_num n)
+      Printf.printf "(Scheme.Num (Num.num_of_int (%d)))" (Num.int_of_num n)
     else
       Printf.printf "(Scheme.Num (Num.num_of_string \"%s\"))"
         (Num.string_of_num n)
@@ -259,10 +259,11 @@ and emit = fun
               match args with
               [ [] -> Printf.printf "Scheme.Nil %s" (String.make count '}')
               | [a :: b] -> do {
-                  Printf.printf "Scheme.Cons { Scheme.car = ";
+                  Printf.printf "(Scheme.Cons { Scheme.car = ";
                   emit a;
                   Printf.printf "; Scheme.cdr = ";
-                  loop (count+1) b
+                  loop (count+1) b;
+                  Printf.printf ")"
                 } ]
             in loop2 0 args
           else match args with

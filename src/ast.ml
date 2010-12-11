@@ -184,6 +184,8 @@ and analyze_cons env car cdr =
     | "let*" -> analyze_let_star env cdr
     | "letrec" -> analyze_letrec env cdr
     | "cond" -> analyze_cond env cdr
+    | "and" -> analyze_and env cdr
+    | "or" -> analyze_or env cdr
     | _ -> Emit.Application (analyze env car) (map_to_list (analyze env) cdr) ]
   | _ -> Emit.Application (analyze env car) (map_to_list (analyze env) cdr) ]
 
@@ -448,4 +450,34 @@ and analyze_cond env cdr =
           (Emit.Begin (map_to_list (analyze env) expressions))
           (loop clauses)
     | _ -> failwith "bad syntax in (cond)" ]
+  in loop cdr
+
+and analyze_and env cdr =
+  let rec loop cdr =
+    match cdr with
+    [ Scheme.Nil -> Emit.Quote Scheme.t
+    | Scheme.Cons {
+        Scheme.car = test;
+        Scheme.cdr = tests
+      } ->
+        let v = Emit.Variable (ref False) "test" in
+        Emit.Let [v] [analyze env test]
+          (Emit.If (Emit.Reference v) (loop tests)
+            (Emit.Quote Scheme.f))
+    | _ -> failwith "bad syntax in (and)" ]
+  in loop cdr
+
+and analyze_or env cdr =
+  let rec loop cdr =
+    match cdr with
+    [ Scheme.Nil -> Emit.Quote Scheme.f
+    | Scheme.Cons {
+        Scheme.car = test;
+        Scheme.cdr = tests
+      } ->
+        let v = Emit.Variable (ref False) "test" in
+        Emit.Let [v] [analyze env test]
+          (Emit.If (Emit.Reference v) (Emit.Reference v)
+            (loop tests))
+    | _ -> failwith "bad syntax in (or)" ]
   in loop cdr;

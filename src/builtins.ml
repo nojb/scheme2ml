@@ -7,8 +7,16 @@ value builtins = [
   ("equal?", None, [(2, "Scheme.is_equal")]);
   ("car", None, [(1, "Scheme.car")]);
   ("cdr", None, [(1, "Scheme.cdr")]);
+  ("caar", None, [(1, "Scheme.caar")]);
+  ("cadr", None, [(1, "Scheme.cadr")]);
+  ("cddr", None, [(1, "Scheme.cddr")]);
+  ("caaar", None, [(1, "Scheme.caaar")]);
+  ("caddr", None, [(1, "Scheme.caddr")]);
+  ("caadr", None, [(1, "Scheme.caadr")]);
+  ("cadddr", None, [(1, "Scheme.cadddr")]);
   ("display", None, [(1, "Scheme.display")]);
   ("zero?", None, [(1, "Scheme.is_zero")]);
+  ("integer?", None, [(1, "Scheme.is_integer")]);
   ("=", Some (2, "Scheme.eq"), []);
   ("<", Some (2, "Scheme.lt"), []);
   (">", Some (2, "Scheme.gt"), []);
@@ -25,6 +33,7 @@ value builtins = [
   ("set-cdr!", None, [(2, "Scheme.set_cdr_bang")]);
   ("null?", None, [(1, "Scheme.is_null")]);
   ("list?", None, [(1, "Scheme.is_list")]);
+  ("length", None, [(1, "Scheme.length")]);
   ("append", Some (0, "Scheme.append"), []);
   ("reverse", None, [(1, "Scheme.reverse")]);
   ("list-tail", None, [(2, "Scheme.list_tail")]);
