@@ -62,7 +62,7 @@ value builtins = [
   ("list->vector", None, [(1, "Scheme.list_to_vector")]);
   ("vector-fill!", None, [(2, "Scheme.vector_fill")]);
   ("char?", None, [(1, "Scheme.is_char")]);
-  ("char=?", None, [(1, "Scheme.is_char_eq")]);
+  ("char=?", None, [(2, "Scheme.is_char_eq")]);
   ("char-alphabetic?", None, [(1, "Scheme.is_char_alphabetic")]);
   ("char-numeric?", None, [(1, "Scheme.is_char_numeric")]);
   ("char-whitespace?", None, [(1, "Scheme.is_char_whitespace")]);
@@ -88,7 +88,7 @@ value builtins = [
   ("open-output-file", None, [(1, "Scheme.open_output_file")]);
   ("close-input-port", None, [(1, "Scheme.close_input_port")]);
   ("close-output-port", None, [(1, "Scheme.close_output_port")]);
-  ("error", None, [(1, "Scheme.error")])
+  ("error", Some (0, "Scheme.error"), [])
 ];
 
 value populate env =

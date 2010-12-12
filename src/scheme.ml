@@ -393,7 +393,9 @@ value length list =
 
 value rec append lists =
   match lists with
-  [ Cons { car = first_list;
+  [ Cons { car = first_list; cdr = Nil } ->
+    first_list
+  | Cons { car = first_list;
     cdr = rest } ->
     let rec loop = fun
       [ Cons cons -> Cons {car = cons.car; cdr = loop cons.cdr }
@@ -401,7 +403,7 @@ value rec append lists =
       | _ -> failwith "append: malformed arguments" ]
     in loop first_list
   | Nil -> Nil
-  | _ -> failwith "append: not a list" ];
+  | _ -> failwith "append: not a list of lists" ];
 
 value reverse list =
   let rec loop list reversed =
@@ -796,5 +798,5 @@ value write_char_to_port char port =
     | _ -> failwith "write-char: not a port" ]
   | _ -> failwith "write-char: not a char" ];
 
-value error obj =
-  failwith ("error: " ^ (to_string obj));
+value error objs =
+  failwith ("error: " ^ (to_string objs));

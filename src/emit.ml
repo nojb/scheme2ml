@@ -1,3 +1,5 @@
+module M = Map.Make String;
+
 type binding =
   [ Variable of ref bool and string
   (* bool is mutable flag, string is Ocaml name *)
@@ -84,7 +86,7 @@ and emit = fun
   | Reference (Builtin (Some (0, varargs)) _ _) ->
     Printf.printf "(Scheme.Lambda %s)" varargs
   | Reference (Builtin (Some (fixed, varargs)) _ name) -> do {
-      Printf.printf "(Lambda (fun args -> match args with [";
+      Printf.printf "(Scheme.Lambda (fun args -> match args with [";
       let rec loop count =
         if count > fixed then "rest " ^ (String.make (count-1) '}')
         else
@@ -98,7 +100,7 @@ and emit = fun
       Printf.printf " rest | _ -> failwith \"%s: bad arity\" ]))" name
     }
   | Reference (Builtin None impls name) -> do {
-      Printf.printf "(Lambda (fun args -> match args with [";
+      Printf.printf "(Scheme.Lambda (fun args -> match args with [";
       let rec help (arity, name) =
         let rec loop count =
           if count > arity then "Scheme.Nil" ^ (String.make (count-1) '}')

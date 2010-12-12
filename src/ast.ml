@@ -1,4 +1,4 @@
-module M = Map.Make String;
+module M = Emit.M; (* Map.Make String; *)
 
 (* mangle : string -> string
  * 
@@ -183,7 +183,7 @@ and analyze_cons qq env car cdr =
     [ Scheme.Cons {
         Scheme.car = a;
         Scheme.cdr = Scheme.Nil
-      } -> analyze_quasiquote (qq+1) env a None
+      } -> analyze_quasiquote (qq+1) env a (* None *)
     | _ -> failwith "bad syntax in (quasiquote)" ]
   | Scheme.Symbol "if" -> analyze_alternative qq env cdr
   | Scheme.Symbol "let" -> analyze_let qq env cdr 
@@ -334,9 +334,7 @@ and analyze_letrec qq env cdr =
         (fun env variable variable' -> M.add variable variable' env)
         env variables variables' in
       let inits' = List.map (analyze qq env') inits in
-      Emit.Let variables' inits'
-        (analyze_body qq env' body)
-        (* (Emit.Begin (map_to_list (analyze qq env') body)) *)
+      Emit.Let variables' inits' (analyze_body qq env' body)
   | _ -> failwith "bad syntax in (letrec)" ]
 
 and analyze_let qq env cdr =
@@ -368,9 +366,7 @@ and analyze_let qq env cdr =
         Emit.Variable (ref False) (mangle variable)) variables
       in let env' = List.fold_left2
         (fun env variable variable' -> M.add variable variable' env) env variables variables'
-      in Emit.Let variables' inits
-        (analyze_body qq env' body)
-        (* (Emit.Begin (map_to_list (analyze qq env') body)) *)
+      in Emit.Let variables' inits (analyze_body qq env' body)
   | _ -> failwith "analyze_let: malformed (let)" ]
 
 and analyze_set qq env cdr =
@@ -450,17 +446,13 @@ and analyze_lambda qq env cdr =
           let args' = List.map (fun arg -> Emit.Variable (ref False) (mangle arg)) args in
           let env' = List.fold_left2
             (fun start rest rest' -> M.add rest rest' start) env args args' in
-          Emit.Lambda varargs args'
-            (analyze_body qq env' cons.Scheme.cdr)
-            (* (Emit.Begin (map_to_list (analyze qq env') cons.Scheme.cdr)) *)
+          Emit.Lambda varargs args' (analyze_body qq env' cons.Scheme.cdr)
     | Scheme.Symbol name ->
         let arg' = Emit.Variable (ref False) (mangle name) in
         let env' = M.add name arg' env in
         Emit.Lambda True [arg'] (analyze_body qq env' cons.Scheme.cdr)
-          (* (Emit.Begin (map_to_list (analyze qq env') cons.Scheme.cdr)) *)
     | Scheme.Nil -> (* zero-arity *)
         Emit.Lambda False [] (analyze_body qq env cons.Scheme.cdr)
-          (* (Emit.Begin (map_to_list (analyze qq env) cons.Scheme.cdr)) *)
     | _ -> failwith "bad syntax in (lambda)" ]
   | _ -> failwith "bad syntax in (lambda)" ]
 
@@ -579,8 +571,107 @@ and analyze_or qq env cdr =
     | _ -> failwith "bad syntax in (or)" ]
   in loop cdr
 
-and analyze_quasiquote qq env car splice =
-  let splic = Emit.Builtin None [(2, "Scheme.splice")] "splice" in
+(* quasiquote expander -- not optimizing
+ *
+ * Taken from Bawden, Quasiquotations in Lips *)
+
+and analyze_quasiquote qq env car =
+  let append = Emit.Reference
+    (Emit.Builtin (Some (0, "Scheme.append")) [] "append") in
+  let cons = Emit.Reference (Emit.Builtin None [(2, "Scheme.cons")] "cons") in
+  match car with
+  [ Scheme.Cons {
+      Scheme.car = Scheme.Symbol "unquote";
+      Scheme.cdr = Scheme.Cons {
+        Scheme.car = x;
+        Scheme.cdr = Scheme.Nil
+      }
+    } ->
+      if qq = 1 then
+        analyze (qq-1) env x
+      else
+        Emit.Application cons
+          [Emit.Quote (Scheme.Symbol "unquote");
+          analyze_quasiquote_list (qq-1) env x]
+  | Scheme.Cons {
+      Scheme.car = Scheme.Symbol "unquote-splicing";
+      Scheme.cdr = _
+    } -> failwith "(unquote-splicing) not allowed here"
+  | Scheme.Cons {
+      Scheme.car = Scheme.Symbol "quasiquote";
+      Scheme.cdr = Scheme.Cons {
+        Scheme.car = x;
+        Scheme.cdr = Scheme.Nil
+      }
+    } -> Emit.Application cons
+          [Emit.Quote (Scheme.Symbol "quasiquote");
+          analyze_quasiquote_list (qq+1) env x]
+  | Scheme.Cons {
+      Scheme.car = a;
+      Scheme.cdr = b
+    } ->
+      Emit.Application append
+        [analyze_quasiquote_list qq env a;
+          analyze_quasiquote qq env b]
+  | _ -> Emit.Quote car ]
+
+and analyze_quasiquote_list qq env car =
+  let append = Emit.Reference (Emit.Builtin (Some (0, "Scheme.append")) []
+  "append") in
+  let list = Emit.Reference (Emit.Builtin (Some (0, "Scheme.list")) [] "list") in
+  let cons = Emit.Reference (Emit.Builtin None [(2, "Scheme.cons")] "cons") in
+  match car with
+  [ Scheme.Cons {
+      Scheme.car = Scheme.Symbol "unquote";
+      Scheme.cdr = Scheme.Cons {
+        Scheme.car = x;
+        Scheme.cdr = Scheme.Nil
+      }
+    } ->
+      if qq = 1 then
+        Emit.Application list [analyze (qq-1) env x]
+      else
+        Emit.Application list
+        [Emit.Application cons
+          [Emit.Quote (Scheme.Symbol "unquote");
+          analyze_quasiquote_list (qq-1) env x]]
+  | Scheme.Cons {
+      Scheme.car = Scheme.Symbol "unquote-splicing";
+      Scheme.cdr = Scheme.Cons {
+        Scheme.car = x;
+        Scheme.cdr = Scheme.Nil
+      }
+    } ->
+      if qq = 1 then
+        analyze (qq-1) env x
+      else
+        Emit.Application list
+          [Emit.Application cons
+            [Emit.Quote (Scheme.Symbol "unquote-splicing");
+            analyze_quasiquote_list (qq-1) env x]]
+  | Scheme.Cons {
+      Scheme.car = Scheme.Symbol "quasiquote";
+      Scheme.cdr = Scheme.Cons {
+        Scheme.car = x;
+        Scheme.cdr = Scheme.Nil
+      }
+    } ->
+      Emit.Application list
+        [Emit.Application cons
+          [Emit.Quote (Scheme.Symbol "quasiquote");
+          analyze_quasiquote_list (qq+1) env x]]
+  | Scheme.Cons {
+      Scheme.car = a;
+      Scheme.cdr = b
+    } ->
+      Emit.Application list [Emit.Application append
+        [analyze_quasiquote_list qq env a;
+        analyze_quasiquote qq env b]]
+  | _ -> Emit.Quote
+    (Scheme.Cons {Scheme.car = car; Scheme.cdr = Scheme.Nil}) ];
+
+(* and analyze_quasiquote qq env car follows =
+  let splice = Emit.Builtin None [(2, "Scheme.splice")] "splice" in
   let cons = Emit.Builtin None [(2, "Scheme.cons")] "cons" in
   (* let vector = Emit.Builtin (Some (0, "Scheme.vector")) [] "vector" in *)
   match car with
@@ -590,7 +681,8 @@ and analyze_quasiquote qq env car splice =
   | Scheme.Boolean _
   | Scheme.Char _
   | Scheme.String _ ->
-      match splice with
+      match follows with
+      (*match splice with*)
       [ None -> Emit.Quote car
       | Some z ->
           Emit.Application (Emit.Reference cons)
@@ -603,17 +695,26 @@ and analyze_quasiquote qq env car splice =
       }
     } ->
       if qq = 1 then
-        match splice with
+        match follows with
         [ None -> analyze (qq-1) env x
         | Some z ->
             Emit.Application (Emit.Reference cons)
               [analyze (qq-1) env x; z] ]
       else
         Emit.Application (Emit.Reference cons)
-          [Emit.Quote (Scheme.Symbol "unquote");
+          [Emit.Application (Emit.Reference cons)
+            [Emit.Quote (Scheme.Symbol "unquote");
+            analyze_quasiquote (qq-1) env x (Some (Emit.Quote Scheme.Nil))];
+            Emit.Quote Scheme.Nil]
+            (*Emit.Application (Emit.Reference cons)
+              [analyze_quasiquote (qq-1) env x None; (* (Some (Emit.Quote
+              Scheme.Nil)); *)
+              Emit.Quote Scheme.Nil]];
+              Emit.Quote Scheme.Nil]*)
+          (*[Emit.Quote (Scheme.Symbol "unquote");
             Emit.Application (Emit.Reference cons)
               [analyze_quasiquote (qq-1) env x (Some (Emit.Quote Scheme.Nil));
-              Emit.Quote Scheme.Nil]]
+              Emit.Quote Scheme.Nil]]*)
   | Scheme.Cons {
       Scheme.car = Scheme.Symbol "unquote-splicing";
       Scheme.cdr = Scheme.Cons {
@@ -622,19 +723,22 @@ and analyze_quasiquote qq env car splice =
       }
     } ->
       if qq = 1 then
-        match splice with
+        match follows with
         [ None -> failwith "bad syntax in (unquote-splicing)"
         | Some (Emit.Quote Scheme.Nil) ->
             analyze (qq-1) env x
         | Some z ->
-            Emit.Application (Emit.Reference splic)
+            Emit.Application (Emit.Reference splice)
               [analyze (qq-1) env x; z] ]
       else
         Emit.Application (Emit.Reference cons)
+          [Emit.Application (Emit.Reference cons)
           [Emit.Quote (Scheme.Symbol "unquote-splicing");
-            Emit.Application (Emit.Reference cons)
+          analyze_quasiquote (qq-1) env x (Some (Emit.Quote Scheme.Nil))];
+          Emit.Quote Scheme.Nil]
+            (*Emit.Application (Emit.Reference cons)
               [analyze_quasiquote (qq-1) env x (Some (Emit.Quote Scheme.Nil));
-              Emit.Quote Scheme.Nil]]
+              Emit.Quote Scheme.Nil]]*)
   | Scheme.Cons {
       Scheme.car = Scheme.Symbol "quasiquote";
       Scheme.cdr = Scheme.Cons {
@@ -647,19 +751,25 @@ and analyze_quasiquote qq env car splice =
         (* analyze_quasiquote (qq+1) env x *)
       else
         Emit.Application (Emit.Reference cons)
-          [Emit.Quote (Scheme.Symbol "quasiquote");
+          [Emit.Application (Emit.Reference cons)
+            [Emit.Quote (Scheme.Symbol "quasiquote");
+            analyze_quasiquote (qq+1) env x (Some (Emit.Quote Scheme.Nil))];
+            Emit.Quote Scheme.Nil]
+          (*[Emit.Quote (Scheme.Symbol "quasiquote");
             Emit.Application (Emit.Reference cons)
               [analyze_quasiquote (qq+1) env x (Some (Emit.Quote Scheme.Nil));
-              Emit.Quote Scheme.Nil]]
+              Emit.Quote Scheme.Nil]]*)
   | Scheme.Cons {Scheme.car=a;Scheme.cdr=b} ->
-      match splice with
+      analyze_quasiquote qq env a (Some (analyze_quasiquote qq env b None))
+      (*match splice with
       [ None -> analyze_quasiquote qq env a (Some (analyze_quasiquote qq env b None))
       | Some z ->
           Emit.Application (Emit.Reference cons)
-            [analyze_quasiquote qq env a (Some (analyze_quasiquote qq env b None)); z]]
+            [analyze_quasiquote qq env a (Some (analyze_quasiquote qq env b
+            None)); z]]*)
   | Scheme.Vector _ ->
       failwith "unquote-splicing in vectors not (yet) supported"
   (*| Scheme.Vector vec ->
       Emit.Application (Emit.Reference vector)
         (List.map (analyze_quasiquote qq env) (Array.to_list vec))*)
-  | _ -> assert False ];
+  | _ -> assert False ];*)

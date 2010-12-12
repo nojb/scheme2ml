@@ -21,7 +21,7 @@ simple:
 	$(OCAMLOPT) $(PP) -c s2ml.ml
 	$(OCAMLOPT) $(LIBS) $(OBJS) -o s2ml.opt
 
-.PHONY: clean simple
+.PHONY: clean simple phony
 
 clean:
 	rm -f *.cm[iox]
@@ -65,6 +65,6 @@ cleanall: clean
 scheme_read.cmx: scheme_read.ml lexer.cmx parser.cmx
 	$(OCAMLOPT) $(PP) -c scheme_read.ml
 
-%.scm: s2ml.opt scheme.cmx scheme_read.cmx
+%.scm: s2ml.opt scheme.cmx scheme_read.cmx phony
 	./s2ml.opt < $@ | camlp5r pr_r.cmo pr_rp.cmo -impl - > `basename $@ .scm`.ml
 	$(OCAMLOPT) $(PP) $(LIBS) scheme.cmx parser.cmx lexer.cmx scheme_read.cmx `basename $@ .scm`.ml -o `basename $@ .scm`
