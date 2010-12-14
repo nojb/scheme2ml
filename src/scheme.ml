@@ -14,6 +14,11 @@ type t =
   | String of string
   | Cons of cons
   | Lambda of t -> t
+  | Lambda0 of unit -> t
+  | Lambda1 of t -> t
+  | Lambda2 of t -> t -> t
+  | Lambda3 of t -> t -> t -> t
+  | Lambda4 of t -> t -> t -> t -> t
   | Void
   | In of in_port
   | Out of out_port
@@ -215,7 +220,12 @@ value rec to_string = fun
     in ("(" ^ loop cons ^ ")")
   | Nil -> "()"
   | Void -> ""
-  | Lambda _ -> "#<closure>" ];
+  | Lambda _
+  | Lambda0 _
+  | Lambda1 _
+  | Lambda2 _
+  | Lambda3 _
+  | Lambda4 _ -> "#<closure>" ];
 
 value display x =
   let _ = print_string (to_string x) in Void;
@@ -223,6 +233,78 @@ value display x =
 value apply f args =
   match f with
   [ Lambda f -> f args
+  | Lambda0 f ->
+    match args with
+    [ Nil -> f ()
+    | _ -> failwith "apply: arity error" ]
+  | Lambda1 f ->
+    match args with
+    [ Cons {car=arg1;cdr=Nil}-> f arg1
+    | _ -> failwith "apply: arity error" ]
+  | Lambda2 f ->
+    match args with
+    [ Cons {car=arg1;cdr=Cons{car=arg2;cdr=Nil}} -> f arg1 arg2
+    | _ -> failwith "apply: arity error" ]
+  | Lambda3 f ->
+    match args with
+    [ Cons{car=a1;cdr=Cons{car=a2;cdr=Cons{car=a3;cdr=Nil}}} -> f a1 a2 a3
+    | _ -> failwith "apply: arity error" ]
+  | Lambda4 f ->
+    match args with
+    [ Cons{car=a1;cdr=Cons{car=a2;cdr=Cons{car=a3;cdr=Cons{car=a4;cdr=Nil}}}} ->
+      f a1 a2 a3 a4
+    | _ -> failwith "apply: arity error" ]
+  | _ -> failwith "apply: not a function" ];
+
+value apply0 f =
+  match f with
+  [ Lambda f -> f Nil
+  | Lambda0 f -> f ()
+  | Lambda1 _
+  | Lambda2 _
+  | Lambda3 _
+  | Lambda4 _ -> failwith "apply: arity error"
+  | _ -> failwith "apply: not a function" ];
+
+value apply1 f a =
+  match f with
+  [ Lambda f -> f (Cons{car=a;cdr=Nil})
+  | Lambda1 f -> f a
+  | Lambda0 _
+  | Lambda2 _
+  | Lambda3 _
+  | Lambda4 _ -> failwith "apply: arity error"
+  | _ -> failwith "apply: not a function" ];
+
+value apply2 f a b =
+  match f with
+  [ Lambda f -> f (Cons{car=a;cdr=Cons{car=b;cdr=Nil}})
+  | Lambda2 f -> f a b
+  | Lambda0 _
+  | Lambda1 _
+  | Lambda3 _
+  | Lambda4 _ -> failwith "apply: arity error"
+  | _ -> failwith "apply: not a function" ];
+
+value apply3 f a b c =
+  match f with
+  [ Lambda f -> f (Cons{car=a;cdr=Cons{car=b;cdr=Cons{car=c;cdr=Nil}}})
+  | Lambda3 f -> f a b c
+  | Lambda0 _
+  | Lambda1 _
+  | Lambda2 _
+  | Lambda4 _ -> failwith "apply: arity error"
+  | _ -> failwith "apply: not a function" ];
+
+value apply4 f a b c d =
+  match f with
+  [ Lambda f -> f
+  (Cons{car=a;cdr=Cons{car=b;cdr=Cons{car=c;cdr=Cons{car=d;cdr=Nil}}}})
+  | Lambda4 f -> f a b c d
+  | Lambda0 _
+  | Lambda1 _
+  | Lambda2 _
+  | Lambda3 _ -> failwith "apply: arity error"
   | _ -> failwith "apply: not a function" ];
 
 value is_true x =
@@ -231,11 +313,10 @@ value is_true x =
   [ Boolean False -> False
   | _ -> True ]; *)
 
-value zerop = fun
+value is_zero number =
+  match number with
   [ Num n -> if Num.eq_num n num_zero then t else f
   | _ -> failwith "zero?: wrong argument type" ];
-
-value is_zero = zerop;
 
 value is_integer obj =
   match obj with

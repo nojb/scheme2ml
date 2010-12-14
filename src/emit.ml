@@ -65,7 +65,12 @@ value rec emit_quote = fun
   | Scheme.Void -> Printf.printf "Scheme.Void"
   | Scheme.In _
   | Scheme.Out _
-  | Scheme.Lambda _ -> failwith "Emit.emit_quote" ]
+  | Scheme.Lambda _
+  | Scheme.Lambda0 _
+  | Scheme.Lambda1 _
+  | Scheme.Lambda2 _
+  | Scheme.Lambda3 _
+  | Scheme.Lambda4 _ -> failwith "Emit.emit_quote" ]
 
 and emit_separated sep = fun
   [ [] -> ()
@@ -99,6 +104,18 @@ and emit = fun
       };
       Printf.printf " rest | _ -> failwith \"%s: bad arity\" ]))" name
     }
+  | Reference (Builtin None [(arity,mlname)] name) ->
+
+      if arity < 5 then
+
+        Printf.printf "(Scheme.Lambda%d %s)" arity mlname
+
+      else do {
+
+        assert False (* really, handle as below *)
+
+      }
+
   | Reference (Builtin None impls name) -> do {
       Printf.printf "(Scheme.Lambda (fun args -> match args with [";
       let rec help (arity, name) =
@@ -181,30 +198,42 @@ and emit = fun
       emit body;
       Printf.printf ")"
     }
-  | Lambda varargs args body -> do {
-      Printf.printf "(Scheme.Lambda (fun args -> ";
-      Printf.printf "match args with [";
-      let rec loop acc args =
-        match args with
-        [ [] -> "Scheme.Nil " ^ String.make acc '}'
-        | [a] ->
-            if varargs then (binding_name a) ^ (String.make acc '}')
-            else "Scheme.Cons { Scheme.car = " ^ (binding_name a) ^
-              "; Scheme.cdr = Scheme.Nil " ^ (String.make (acc+1) '}')
-        | [a :: b] ->
-            "Scheme.Cons {Scheme.car = " ^ (binding_name a) ^
-            "; Scheme.cdr = " ^ (loop (acc+1) b) ]
-      in do {
-        Printf.printf "%s -> " (loop 0 args);
+  | Lambda varargs args body ->
+      if List.length args >= 5 then do {
+        Printf.printf "(Scheme.Lambda (fun args -> ";
+        Printf.printf "match args with [";
+        let rec loop acc args =
+          match args with
+          [ [] -> "Scheme.Nil " ^ String.make acc '}'
+          | [a] ->
+              if varargs then (binding_name a) ^ (String.make acc '}')
+              else "Scheme.Cons { Scheme.car = " ^ (binding_name a) ^
+                "; Scheme.cdr = Scheme.Nil " ^ (String.make (acc+1) '}')
+          | [a :: b] ->
+              "Scheme.Cons {Scheme.car = " ^ (binding_name a) ^
+              "; Scheme.cdr = " ^ (loop (acc+1) b) ]
+        in do {
+          Printf.printf "%s -> " (loop 0 args);
+          List.iter (fun arg ->
+            if (binding_mutable arg) then
+              Printf.printf "let %s = ref %s in "
+                (binding_name arg) (binding_name arg) else ())
+            args;
+          emit body;
+          Printf.printf "| _ -> failwith \"incorrect arity\" ]))"
+        }
+      } else do {
+        Printf.printf "(Lambda%d (fun %s -> " (List.length args)
+          (if List.length args = 0 then "()" else String.concat " " (List.map
+          binding_name args));
         List.iter (fun arg ->
-          if (binding_mutable arg) then
-            Printf.printf "let %s = ref %s in "
-              (binding_name arg) (binding_name arg) else ())
-          args;
+          if binding_mutable arg then
+            Printf.printf "let %s = ref %s in " (binding_name arg)
+              (binding_name arg)
+          else ()) args;
         emit body;
-        Printf.printf "| _ -> failwith \"incorrect arity\" ]))"
+        Printf.printf "))"
       }
-    }
   | If cond iftrue iffalse -> do {
       Printf.printf "(if (Scheme.is_true ";
       emit cond;
@@ -271,7 +300,13 @@ and emit = fun
         Printf.printf ")"
       }
     }
-  | Application f args -> do {
+  | Application f args ->
+    if List.length args < 5 then do {
+      Printf.printf "(Scheme.apply%d " (List.length args);
+      emit f;
+      emit_separated " " args;
+      Printf.printf ")"
+    } else do {
       Printf.printf "(Scheme.apply ";
       emit f;
       Printf.printf "(";
