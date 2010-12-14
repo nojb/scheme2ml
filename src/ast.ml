@@ -51,7 +51,7 @@ value rec iter_cons f cons =
   | Scheme.Nil -> ()
   | _ -> raise NotAList ];
 
-value rec fold_cons f f_last f_nil z cons =
+value rec fold_left_cons f f_last f_nil z cons =
   match cons with
   [ Scheme.Cons {
       Scheme.car = a;
@@ -60,7 +60,7 @@ value rec fold_cons f f_last f_nil z cons =
   | Scheme.Cons {
       Scheme.car = a;
       Scheme.cdr = b
-    } -> fold_cons f f_last f_nil (f z a) b
+    } -> fold_left_cons f f_last f_nil (f z a) b
   | Scheme.Nil -> f_nil
   | _ -> raise NotAList ];
 
@@ -203,7 +203,8 @@ value rec analyze_program x =
       ("cond", analyze_cond);
       ("and", analyze_and);
       ("or", analyze_or);
-      ("case", analyze_case) ]
+      ("case", analyze_case);
+      ("delay", analyze_delay) ]
     in
     let env = List.fold_left (fun env (name, varargs, impls) ->
       M.add name (Emit.Builtin varargs impls name) env) M.empty Builtins.builtins
@@ -824,7 +825,14 @@ and analyze_case qq env cdr =
             with [ NotAList -> failwith "bad syntax in (case)" ]
         | _ -> failwith "bad syntax in (case)" ]
       in
-      fold_cons help help_last (Emit.Quote Scheme.Void) [] clauses
+      fold_left_cons help help_last (Emit.Quote Scheme.Void) [] clauses
   | Scheme.Nil -> Emit.Quote Scheme.Void
-  | _ -> failwith "bad syntax in (case)" ];
+  | _ -> failwith "bad syntax in (case)" ]
 
+and analyze_delay qq env cdr =
+  match cdr with
+  [ Scheme.Cons {
+      Scheme.car = e;
+      Scheme.cdr = Scheme.Nil
+    } -> Emit.Delay (analyze qq env e)
+  | _ -> failwith "bad syntax in (delay)" ];

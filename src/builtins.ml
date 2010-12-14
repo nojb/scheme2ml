@@ -88,5 +88,6 @@ value builtins = [
   ("open-output-file", None, [(1, "Scheme.open_output_file")]);
   ("close-input-port", None, [(1, "Scheme.close_input_port")]);
   ("close-output-port", None, [(1, "Scheme.close_output_port")]);
+  ("force", None, [(1, "Scheme.force")]);
   ("error", Some (0, "Scheme.error"), [])
 ];

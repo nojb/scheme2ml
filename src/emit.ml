@@ -10,7 +10,8 @@ type t =
   | Set of binding and t
   | Let of list binding and list t and t (* (letrec ...) *)
   | Application of t and list t
-  | Case of t and list (list Scheme.t * t) and t ]
+  | Case of t and list (list Scheme.t * t) and t
+  | Delay of t ]
 
 and binding =
   [ Variable of ref bool and string
@@ -78,6 +79,7 @@ value rec emit_quote = fun
   | Scheme.Void -> Printf.printf "Scheme.Void"
   | Scheme.In _
   | Scheme.Out _
+  | Scheme.Promise _
   | Scheme.Lambda _
   | Scheme.Lambda0 _
   | Scheme.Lambda1 _
@@ -350,4 +352,9 @@ and emit = fun
       Printf.printf " | _ -> ";
       emit elseclause;
       Printf.printf "])"
+    }
+  | Delay promise -> do {
+      Printf.printf "(Scheme.Promise (lazy ";
+      emit promise;
+      Printf.printf "))"
     } ];

@@ -19,6 +19,7 @@ type t =
   | Lambda2 of t -> t -> t
   | Lambda3 of t -> t -> t -> t
   | Lambda4 of t -> t -> t -> t -> t
+  | Promise of Lazy.t t
   | Void
   | In of in_port
   | Out of out_port
@@ -220,6 +221,7 @@ value rec to_string = fun
     in ("(" ^ loop cons ^ ")")
   | Nil -> "()"
   | Void -> ""
+  | Promise _ -> "#<promise>"
   | Lambda _
   | Lambda0 _
   | Lambda1 _
@@ -887,3 +889,8 @@ value write_char_to_port char port =
 
 value error objs =
   failwith ("error: " ^ (to_string objs));
+
+value force obj =
+  match obj with
+  [ Promise obj -> Lazy.force obj
+  | _ -> failwith "force: not a promise" ];
