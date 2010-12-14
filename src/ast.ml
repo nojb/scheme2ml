@@ -41,6 +41,40 @@ value populate env =
   List.fold_left (fun env (name, varargs, impls) ->
     M.add name (Emit.Builtin varargs impls name) env) env Builtins.builtins;
 
+exception NotAList;
+
+value rec iter_cons f cons =
+  match cons with
+  [ Scheme.Cons {
+      Scheme.car = a;
+      Scheme.cdr = b
+    } -> do {
+      f a;
+      iter_cons f b
+    }
+  | Scheme.Nil -> ()
+  | _ -> raise NotAList ];
+
+value rec fold_cons f f_last f_nil z cons =
+  match cons with
+  [ Scheme.Cons {
+      Scheme.car = a;
+      Scheme.cdr = Scheme.Nil
+    } -> f_last z a
+  | Scheme.Cons {
+      Scheme.car = a;
+      Scheme.cdr = b
+    } -> fold_cons f f_last f_nil (f z a) b
+  | Scheme.Nil -> f_nil
+  | _ -> raise NotAList ];
+
+value rec map_to_list f cons =
+  match cons with
+  [ Scheme.Nil -> []
+  | Scheme.Cons cons ->
+    [f cons.Scheme.car :: map_to_list f cons.Scheme.cdr]
+  | _ -> raise NotAList ];
+
 (* analyze_program : Emit.binding M.t -> Scheme.t -> Emit.t
  *
  * This is the entry to the syntax analysis phase of the compiler.
@@ -145,20 +179,26 @@ value rec analyze_program x =
     Scheme.car = Scheme.Symbol "begin";
     Scheme.cdr = loop x
   } in do {
+    let syntax_forms = [
+      ("begin", analyze_begin);
+      ("lambda", analyze_lambda);
+    (*  ("define", analyze_define); *)
+      ("set!", analyze_set);
+      ("quote", analyze_quote);
+      ("quasiquote", analyze_quasiquote);
+      ("if", analyze_alternative);
+      ("let", analyze_let);
+      ("let*", analyze_let_star);
+      ("letrec", analyze_letrec);
+      ("cond", analyze_cond);
+      ("and", analyze_and);
+      ("or", analyze_or);
+      ("case", analyze_case) ]
+    in
     let env = populate M.empty in
-    let env = M.add "begin" (Emit.Syntax analyze_begin) env in
-    let env = M.add "lambda" (Emit.Syntax analyze_lambda) env in
-    (*let env = M.add "define" (Emit.Syntax analyze_define) env in*)
-    let env = M.add "set!" (Emit.Syntax analyze_set) env in
-    let env = M.add "quote" (Emit.Syntax analyze_quote) env in
-    let env = M.add "quasiquote" (Emit.Syntax analyze_quasiquote) env in
-    let env = M.add "if" (Emit.Syntax analyze_alternative) env in
-    let env = M.add "let" (Emit.Syntax analyze_let) env in
-    let env = M.add "let*" (Emit.Syntax analyze_let_star) env in
-    let env = M.add "letrec" (Emit.Syntax analyze_letrec) env in
-    let env = M.add "cond" (Emit.Syntax analyze_cond) env in
-    let env = M.add "and" (Emit.Syntax analyze_and) env in
-    let env = M.add "or" (Emit.Syntax analyze_or) env in
+    let env = List.fold_left (fun env (name, impl) ->
+      M.add name (Emit.Syntax impl) env) env syntax_forms
+    in
     (* Printf.eprintf "DEBUG:\n%s\n%!" (Scheme.to_string x'); *)
     analyze 0 env x'
   }
@@ -176,12 +216,6 @@ and analyze qq env x =
     with [ Not_found -> failwith ("unknown identifier: " ^ s) ]
   | Scheme.Cons cons -> analyze_cons qq env cons.Scheme.car cons.Scheme.cdr
   | _ -> failwith "Ast.analyze: unhandled scheme datum" ]
-
-and map_to_list f = fun
-  [ Scheme.Nil -> []
-  | Scheme.Cons cons ->
-    [f cons.Scheme.car :: map_to_list f cons.Scheme.cdr]
-  | _ -> failwith "Ast.to_list: not a list" ]
 
 and analyze_cons qq env car cdr =
   match car with
@@ -683,108 +717,53 @@ and analyze_quasiquote_list qq env car =
         [analyze_quasiquote_list qq env a;
         analyze_quasiquote qq env b]]
   | _ -> Emit.Quote
-    (Scheme.Cons {Scheme.car = car; Scheme.cdr = Scheme.Nil}) ];
+    (Scheme.Cons {Scheme.car = car; Scheme.cdr = Scheme.Nil}) ]
 
-(* and analyze_quasiquote qq env car follows =
-  let splice = Emit.Builtin None [(2, "Scheme.splice")] "splice" in
-  let cons = Emit.Builtin None [(2, "Scheme.cons")] "cons" in
-  (* let vector = Emit.Builtin (Some (0, "Scheme.vector")) [] "vector" in *)
-  match car with
-  [ Scheme.Nil
-  | Scheme.Num _
-  | Scheme.Symbol _
-  | Scheme.Boolean _
-  | Scheme.Char _
-  | Scheme.String _ ->
-      match follows with
-      (*match splice with*)
-      [ None -> Emit.Quote car
-      | Some z ->
-          Emit.Application (Emit.Reference cons)
-            [Emit.Quote car; z] ]
-  | Scheme.Cons {
-      Scheme.car = Scheme.Symbol "unquote";
-      Scheme.cdr = Scheme.Cons {
-        Scheme.car = x;
-        Scheme.cdr = Scheme.Nil
-      }
+and analyze_case qq env cdr =
+  match cdr with
+  [ Scheme.Cons {
+      Scheme.car = key;
+      Scheme.cdr = clauses
     } ->
-      if qq = 1 then
-        match follows with
-        [ None -> analyze (qq-1) env x
-        | Some z ->
-            Emit.Application (Emit.Reference cons)
-              [analyze (qq-1) env x; z] ]
-      else
-        Emit.Application (Emit.Reference cons)
-          [Emit.Application (Emit.Reference cons)
-            [Emit.Quote (Scheme.Symbol "unquote");
-            analyze_quasiquote (qq-1) env x (Some (Emit.Quote Scheme.Nil))];
-            Emit.Quote Scheme.Nil]
-            (*Emit.Application (Emit.Reference cons)
-              [analyze_quasiquote (qq-1) env x None; (* (Some (Emit.Quote
-              Scheme.Nil)); *)
-              Emit.Quote Scheme.Nil]];
-              Emit.Quote Scheme.Nil]*)
-          (*[Emit.Quote (Scheme.Symbol "unquote");
-            Emit.Application (Emit.Reference cons)
-              [analyze_quasiquote (qq-1) env x (Some (Emit.Quote Scheme.Nil));
-              Emit.Quote Scheme.Nil]]*)
-  | Scheme.Cons {
-      Scheme.car = Scheme.Symbol "unquote-splicing";
-      Scheme.cdr = Scheme.Cons {
-        Scheme.car = x;
-        Scheme.cdr = Scheme.Nil
-      }
-    } ->
-      if qq = 1 then
-        match follows with
-        [ None -> failwith "bad syntax in (unquote-splicing)"
-        | Some (Emit.Quote Scheme.Nil) ->
-            analyze (qq-1) env x
-        | Some z ->
-            Emit.Application (Emit.Reference splice)
-              [analyze (qq-1) env x; z] ]
-      else
-        Emit.Application (Emit.Reference cons)
-          [Emit.Application (Emit.Reference cons)
-          [Emit.Quote (Scheme.Symbol "unquote-splicing");
-          analyze_quasiquote (qq-1) env x (Some (Emit.Quote Scheme.Nil))];
-          Emit.Quote Scheme.Nil]
-            (*Emit.Application (Emit.Reference cons)
-              [analyze_quasiquote (qq-1) env x (Some (Emit.Quote Scheme.Nil));
-              Emit.Quote Scheme.Nil]]*)
-  | Scheme.Cons {
-      Scheme.car = Scheme.Symbol "quasiquote";
-      Scheme.cdr = Scheme.Cons {
-        Scheme.car = x;
-        Scheme.cdr = Scheme.Nil
-      }
-    } ->
-      if qq = 0 then
-        assert False (* this can't happen! *)
-        (* analyze_quasiquote (qq+1) env x *)
-      else
-        Emit.Application (Emit.Reference cons)
-          [Emit.Application (Emit.Reference cons)
-            [Emit.Quote (Scheme.Symbol "quasiquote");
-            analyze_quasiquote (qq+1) env x (Some (Emit.Quote Scheme.Nil))];
-            Emit.Quote Scheme.Nil]
-          (*[Emit.Quote (Scheme.Symbol "quasiquote");
-            Emit.Application (Emit.Reference cons)
-              [analyze_quasiquote (qq+1) env x (Some (Emit.Quote Scheme.Nil));
-              Emit.Quote Scheme.Nil]]*)
-  | Scheme.Cons {Scheme.car=a;Scheme.cdr=b} ->
-      analyze_quasiquote qq env a (Some (analyze_quasiquote qq env b None))
-      (*match splice with
-      [ None -> analyze_quasiquote qq env a (Some (analyze_quasiquote qq env b None))
-      | Some z ->
-          Emit.Application (Emit.Reference cons)
-            [analyze_quasiquote qq env a (Some (analyze_quasiquote qq env b
-            None)); z]]*)
-  | Scheme.Vector _ ->
-      failwith "unquote-splicing in vectors not (yet) supported"
-  (*| Scheme.Vector vec ->
-      Emit.Application (Emit.Reference vector)
-        (List.map (analyze_quasiquote qq env) (Array.to_list vec))*)
-  | _ -> assert False ];*)
+      let help_last emitted clause =
+        match clause with
+        [ Scheme.Cons {
+            Scheme.car = Scheme.Symbol "else";
+            Scheme.cdr = body
+          } ->
+            try
+              Emit.Case (analyze qq env key)
+                (List.rev emitted) (Emit.Begin
+                  (map_to_list (analyze qq env) body))
+            with [ NotAList -> failwith "bad syntax in (case)" ]
+        | Scheme.Cons {
+            Scheme.car = cond;
+            Scheme.cdr = body
+          } ->
+            try let emitted =
+              [(map_to_list (fun x -> x) cond,
+                  Emit.Begin
+                    (map_to_list (analyze qq env) body)) :: emitted]
+            in
+            Emit.Case (analyze qq env key)
+              (List.rev emitted) (Emit.Quote Scheme.Void)
+            with [ NotAList -> failwith "bad syntax in (case)" ]
+        | _ -> failwith "bad syntax in (case)" ]
+      in
+      let help emitted clause =
+        match clause with
+        [ Scheme.Cons {
+            Scheme.car = cond;
+            Scheme.cdr = body
+          } ->
+            try
+              [(map_to_list (fun x -> x) cond,
+                  Emit.Begin
+                    (map_to_list (analyze qq env) body)) :: emitted]
+            with [ NotAList -> failwith "bad syntax in (case)" ]
+        | _ -> failwith "bad syntax in (case)" ]
+      in
+      fold_cons help help_last (Emit.Quote Scheme.Void) [] clauses
+  | Scheme.Nil -> Emit.Quote Scheme.Void
+  | _ -> failwith "bad syntax in (case)" ];
+

@@ -9,7 +9,8 @@ type t =
   (*| Define of binding and t*)
   | Set of binding and t
   | Let of list binding and list t and t (* (letrec ...) *)
-  | Application of t and list t ]
+  | Application of t and list t
+  | Case of t and list (list Scheme.t * t) and t ]
 
 and binding =
   [ Variable of ref bool and string
@@ -27,6 +28,15 @@ value binding_mutable = fun
   [ Variable mut _ -> mut.val
   | Syntax _
   | Builtin _ _ _ -> False ];
+
+value rec emit_separated sep f = fun
+  [ [] -> ()
+  | [a] -> f a
+  | [a :: b] -> do {
+      f a;
+      Printf.printf "%s" sep;
+      emit_separated sep f b
+    } ];
 
 value rec emit_quote = fun
   [ Scheme.Num n ->
@@ -74,15 +84,6 @@ value rec emit_quote = fun
   | Scheme.Lambda2 _
   | Scheme.Lambda3 _
   | Scheme.Lambda4 _ -> failwith "Emit.emit_quote" ]
-
-and emit_separated sep = fun
-  [ [] -> ()
-  | [a] -> emit a
-  | [a :: b] -> do {
-      emit a;
-      Printf.printf "%s" sep;
-      emit_separated sep b
-    } ]
 
 and emit = fun
   [ Quote q -> emit_quote q
@@ -252,7 +253,7 @@ and emit = fun
   | Application (Reference (Builtin (Some (0, "Scheme.vector"))
       [] "vector")) args -> do {
       Printf.printf "(Scheme.Vector [|";
-      emit_separated ";" args;
+      emit_separated ";" emit args;
       Printf.printf "|])"
     }
   | Application (Reference (Builtin (Some (fixed, varargs)) impls name)) args -> do {
@@ -260,7 +261,7 @@ and emit = fun
       try let impl = List.assoc arity impls in do {
         Printf.printf "(%s " impl;
         if arity = 0 then Printf.printf "()"
-        else emit_separated " " args;
+        else emit_separated " " emit args;
         Printf.printf ")"
       } with [ Not_found -> do {
         Printf.printf "(%s " varargs;
@@ -302,7 +303,7 @@ and emit = fun
       in do {
         Printf.printf "(%s " impl;
         if arity = 0 then Printf.printf "()"
-        else emit_separated " " args;
+        else emit_separated " " emit args;
         Printf.printf ")"
       }
     }
@@ -311,7 +312,7 @@ and emit = fun
       Printf.printf "(Scheme.apply%d " (List.length args);
       emit f;
       Printf.printf " ";
-      emit_separated " " args;
+      emit_separated " " emit args;
       Printf.printf ")"
     } else do {
       Printf.printf "(Scheme.apply ";
@@ -328,4 +329,25 @@ and emit = fun
             Printf.printf "}"
           } ]
       in loop args; Printf.printf "))"
+    }
+  | Case key [] elseclause -> do {
+      Printf.printf "(let _ = ";
+      emit key;
+      Printf.printf " in ";
+      emit elseclause;
+      Printf.printf ")"
+    }
+  | Case key clauses elseclause -> do {
+      Printf.printf "(match ";
+      emit key;
+      Printf.printf " with [ ";
+      emit_separated "|"
+        (fun (ds, e) -> do {
+          emit_separated " | " emit_quote ds;
+          Printf.printf " -> ";
+          emit e })
+        clauses;
+      Printf.printf " | _ -> ";
+      emit elseclause;
+      Printf.printf "])"
     } ];

@@ -63,7 +63,7 @@ value intern s =
 value is_eq a b =
   if a == b then t else f;
 
-value is_eqv a b =
+value is_eqv a b = (* this is the same as a = b ? *)
   match (a, b) with
   [ (Symbol a, Symbol b) -> if String.compare a b = 0 then t else f
   | (Boolean a, Boolean b) -> if a = b then t else f
