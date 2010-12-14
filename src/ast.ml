@@ -51,7 +51,16 @@ value rec iter_cons f cons =
   | Scheme.Nil -> ()
   | _ -> raise NotAList ];
 
-value rec fold_left_cons f f_last f_nil z cons =
+value rec fold_left_cons f z cons =
+  match cons with
+  [ Scheme.Nil -> z
+  | Scheme.Cons {
+      Scheme.car = a;
+      Scheme.cdr = b
+    } -> fold_left_cons f (f z a) b
+  | _ -> raise NotAList ];
+
+value rec fold_last_cons f f_last f_nil z cons =
   match cons with
   [ Scheme.Cons {
       Scheme.car = a;
@@ -60,7 +69,7 @@ value rec fold_left_cons f f_last f_nil z cons =
   | Scheme.Cons {
       Scheme.car = a;
       Scheme.cdr = b
-    } -> fold_left_cons f f_last f_nil (f z a) b
+    } -> fold_last_cons f f_last f_nil (f z a) b
   | Scheme.Nil -> f_nil
   | _ -> raise NotAList ];
 
@@ -204,7 +213,8 @@ value rec analyze_program x =
       ("and", analyze_and);
       ("or", analyze_or);
       ("case", analyze_case);
-      ("delay", analyze_delay) ]
+      ("delay", analyze_delay);
+      ("do", analyze_do) ]
     in
     let env = List.fold_left (fun env (name, varargs, impls) ->
       M.add name (Emit.Builtin varargs impls name) env) M.empty Builtins.builtins
@@ -825,7 +835,7 @@ and analyze_case qq env cdr =
             with [ NotAList -> failwith "bad syntax in (case)" ]
         | _ -> failwith "bad syntax in (case)" ]
       in
-      fold_left_cons help help_last (Emit.Quote Scheme.Void) [] clauses
+      fold_last_cons help help_last (Emit.Quote Scheme.Void) [] clauses
   | Scheme.Nil -> Emit.Quote Scheme.Void
   | _ -> failwith "bad syntax in (case)" ]
 
@@ -835,4 +845,68 @@ and analyze_delay qq env cdr =
       Scheme.car = e;
       Scheme.cdr = Scheme.Nil
     } -> Emit.Delay (analyze qq env e)
-  | _ -> failwith "bad syntax in (delay)" ];
+  | _ -> failwith "bad syntax in (delay)" ]
+
+and analyze_do qq env cdr =
+  match cdr with
+  [ Scheme.Cons {
+      Scheme.car = variables;
+      Scheme.cdr = Scheme.Cons {
+        Scheme.car = test;
+        Scheme.cdr = body
+      }
+    } ->
+      let parse_var variable =
+        match variable with
+        [ Scheme.Cons {
+            Scheme.car = (Scheme.Symbol var as v);
+            Scheme.cdr = Scheme.Cons {
+              Scheme.car = init;
+              Scheme.cdr = Scheme.Nil
+            }
+          } -> (var, init, v)
+        | Scheme.Cons {
+            Scheme.car = Scheme.Symbol var;
+            Scheme.cdr = Scheme.Cons {
+              Scheme.car = init;
+              Scheme.cdr = Scheme.Cons {
+                Scheme.car = step;
+                Scheme.cdr = Scheme.Nil
+              }
+            }
+          } -> (var, init, step)
+        | _ -> failwith "bad syntax in (do)" ]
+      in
+      let head = map_to_list parse_var variables in
+      let vars = List.map (fun (var, _, _) -> var) head in
+      let vars' = List.map (fun var ->
+        Emit.Variable (ref False) (mangle var)) vars
+      in
+      let env' = List.fold_left2 (fun env var var' ->
+        M.add var var' env) env vars vars'
+      in
+      let inits = List.map (fun (_, init, _) ->
+        analyze qq env init) head
+      in
+      let steps = List.map (fun (_, _, step) ->
+        analyze qq env' step) head
+      in
+      let body = map_to_list (analyze qq env') body in
+      match test with
+      [ Scheme.Cons {
+          Scheme.car = test;
+          Scheme.cdr = iftrue
+        } ->
+          let test = analyze qq env' test in
+          let iftrue = map_to_list (analyze qq env') iftrue in
+          let loop = Emit.Variable (ref False) "loop" in
+          Emit.Let [loop]
+            [Emit.Lambda False vars'
+              (Emit.If test (Emit.Begin iftrue)
+                (Emit.Begin
+                  [Emit.Begin body;
+                    Emit.Application (Emit.Reference loop)
+                      steps]))]
+           (Emit.Application (Emit.Reference loop) inits)
+      | _ -> failwith "bad syntax in (do)" ]
+  | _ -> failwith "bad syntax in (do)" ];

@@ -12,6 +12,7 @@ type t =
   | Application of t and list t
   | Case of t and list (list Scheme.t * t) and t
   | Delay of t ]
+  (*| Do of list (binding * t * t) and (t * t) and t ]*)
 
 and binding =
   [ Variable of ref bool and string
@@ -143,7 +144,7 @@ and emit = fun
       Printf.printf "_ -> failwith \"%s: bad arity\" ]))" name
     }
   | Begin ls -> do {
-      Printf.printf "do { ";
+      Printf.printf "(do { ";
       let rec loop ls =
         match ls with
         [ [] -> Printf.printf "Scheme.Void"
@@ -155,7 +156,7 @@ and emit = fun
           loop b
         } ]
       in loop ls;
-      Printf.printf "}"
+      Printf.printf "})"
     }
   (*| Define b exp -> do {
       Printf.printf "value rec %s = " (binding_name b);
@@ -358,3 +359,31 @@ and emit = fun
       emit promise;
       Printf.printf "))"
     } ];
+  (*| Do [] (test, iftrue) body -> do {
+      Printf.printf "(let rec loop () = if Scheme.is_true ";
+      emit test;
+      Printf.printf " then ";
+      emit iftrue;
+      Printf.printf " else do {";
+      emit body;
+      Printf.printf "; loop () } in loop ())"
+    }
+  | Do variables (test, iftrue) body -> do {
+      Printf.printf "(let rec loop";
+      List.iter (fun (var, _, _) ->
+        Printf.printf " %s" (binding_name var))
+        variables;
+      Printf.printf " = if Scheme.is_true ";
+      emit test;
+      Printf.printf " then ";
+      emit iftrue;
+      Printf.printf " else do {";
+      emit body;
+      Printf.printf "; loop ";
+      emit_separated " "
+        (fun (_, _, step) -> emit step)
+        variables;
+      Printf.printf " } in loop ";
+      emit_separated " " (fun (_, init, _) -> emit init);
+      Printf.printf ")"
+    } ];*)
