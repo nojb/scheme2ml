@@ -37,10 +37,6 @@ value mangle s =
   String.concat "" ["_" ^ (string_of_int count) ^ "_" ::
     List.map mangle_char (string_to_list s)]};
 
-value populate env =
-  List.fold_left (fun env (name, varargs, impls) ->
-    M.add name (Emit.Builtin varargs impls name) env) env Builtins.builtins;
-
 exception NotAList;
 
 value rec iter_cons f cons =
@@ -66,6 +62,20 @@ value rec fold_cons f f_last f_nil z cons =
       Scheme.cdr = b
     } -> fold_cons f f_last f_nil (f z a) b
   | Scheme.Nil -> f_nil
+  | _ -> raise NotAList ];
+
+value rec fold_right_cons f cons z =
+  match cons with
+  [ Scheme.Nil -> z
+  | Scheme.Cons {
+      Scheme.car = a;
+      Scheme.cdr = Scheme.Nil
+    } -> f a z
+  | Scheme.Cons {
+      Scheme.car = a;
+      Scheme.cdr = b
+    } ->
+      f a (fold_right_cons f b z)
   | _ -> raise NotAList ];
 
 value rec map_to_list f cons =
@@ -195,7 +205,9 @@ value rec analyze_program x =
       ("or", analyze_or);
       ("case", analyze_case) ]
     in
-    let env = populate M.empty in
+    let env = List.fold_left (fun env (name, varargs, impls) ->
+      M.add name (Emit.Builtin varargs impls name) env) M.empty Builtins.builtins
+    in
     let env = List.fold_left (fun env (name, impl) ->
       M.add name (Emit.Syntax impl) env) env syntax_forms
     in
@@ -228,7 +240,8 @@ and analyze_cons qq env car cdr =
   | _ -> Emit.Application (analyze qq env car) (map_to_list (analyze qq env) cdr) ]
 
 and analyze_begin qq env cdr =
-  Emit.Begin (map_to_list (analyze qq env) cdr)
+  try Emit.Begin (map_to_list (analyze qq env) cdr)
+  with [ NotAList -> failwith "bad syntax in (begin)" ]
 
 and analyze_quote qq env cdr =
   match cdr with
@@ -384,7 +397,55 @@ and analyze_letrec qq env cdr =
 
 and analyze_let qq env cdr =
   match cdr with
-  [ Scheme.Cons {
+  [ Scheme.Cons { (* named let *)
+      Scheme.car = (Scheme.Symbol _ as v);
+      Scheme.cdr = Scheme.Cons {
+        Scheme.car = bindings;
+        Scheme.cdr = body
+      }
+    } ->
+      let help binding (names, values) =
+        match binding with
+        [ Scheme.Cons {
+            Scheme.car = (Scheme.Symbol _ as v);
+            Scheme.cdr = Scheme.Cons {
+              Scheme.car = e;
+              Scheme.cdr = Scheme.Nil
+            }
+        } -> (Scheme.Cons {Scheme.car = v; Scheme.cdr = names},
+              Scheme.Cons {Scheme.car = e; Scheme.cdr = values})
+        | _ -> failwith "bad syntax in (let)" ]
+      in
+      let (binding_names, binding_values) =
+        fold_right_cons help bindings (Scheme.Nil, Scheme.Nil)
+      in
+      analyze_letrec qq env (
+        Scheme.Cons {
+          Scheme.car = Scheme.Cons {
+            Scheme.car = Scheme.Cons {
+              Scheme.car = v;
+              Scheme.cdr = Scheme.Cons {
+                Scheme.car = Scheme.Cons {
+                  Scheme.car = Scheme.Symbol "lambda";
+                  Scheme.cdr = Scheme.Cons {
+                    Scheme.car = binding_names;
+                    Scheme.cdr = body
+                  }
+                };
+                Scheme.cdr = Scheme.Nil
+              }
+            };
+            Scheme.cdr = Scheme.Nil
+          };
+          Scheme.cdr = Scheme.Cons {
+            Scheme.car = Scheme.Cons {
+              Scheme.car = Scheme.Symbol "loop";
+              Scheme.cdr = binding_values
+            };
+            Scheme.cdr = Scheme.Nil
+          }
+        })
+  | Scheme.Cons {
       Scheme.car = bindings;
       Scheme.cdr = body
     } ->
@@ -412,7 +473,7 @@ and analyze_let qq env cdr =
       in let env' = List.fold_left2
         (fun env variable variable' -> M.add variable variable' env) env variables variables'
       in Emit.Let variables' inits (analyze_body qq env' body)
-  | _ -> failwith "analyze_let: malformed (let)" ]
+  | _ -> failwith "bad syntax in (let)" ]
 
 and analyze_set qq env cdr =
   match cdr with
