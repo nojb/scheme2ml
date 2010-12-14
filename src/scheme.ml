@@ -602,6 +602,15 @@ value vector objs =
     | _ -> failwith "vector: bad arglist" ]
   in Vector (loop 0 objs);
 
+value make_vector size =
+  match size with
+  [ Num n -> 
+    if Num.is_integer_num n then
+      Vector (Array.make (Num.int_of_num n) Void)
+    else
+      failwith "make-vector: not an integer"
+  | _ -> failwith "make-vector: not an integer" ];
+
 value vector_length vector =
   match vector with
   [ Vector vector -> Num (Num.num_of_int (Array.length vector))

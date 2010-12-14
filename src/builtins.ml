@@ -55,6 +55,7 @@ value builtins = [
   ("string->symbol", None, [(1, "Scheme.string_to_symbol")]);
   ("vector?", None, [(1, "Scheme.is_vector")]);
   ("vector", Some (0, "Scheme.vector"), []);
+  ("make-vector", None, [(1, "Scheme.make_vector")]);
   ("vector-length", None, [(1, "Scheme.vector_length")]);
   ("vector-ref", None, [(2, "Scheme.vector_ref")]);
   ("vector-set!", None, [(3, "Scheme.vector_set")]);
