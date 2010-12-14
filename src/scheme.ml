@@ -486,6 +486,12 @@ value rec append lists =
   | Nil -> Nil
   | _ -> failwith "append: not a list of lists" ];
 
+value rec append2 list1 list2 =
+  match list1 with
+  [ Nil -> list2
+  | Cons{car=a;cdr=b} -> Cons{car=a;cdr=append2 b list2}
+  | _ -> failwith "append: not a list" ];
+
 value reverse list =
   let rec loop list reversed =
     match list with

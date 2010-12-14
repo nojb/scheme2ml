@@ -1,19 +1,5 @@
 module M = Map.Make String;
 
-type binding =
-  [ Variable of ref bool and string
-  (* bool is mutable flag, string is Ocaml name *)
-  | Builtin of option (int * string) and list (int * string) and string ];
-  (* int is arity, string is Ocaml name *)
-
-value binding_name = fun
-  [ Variable _ name
-  | Builtin _ _ name -> name ];
-
-value binding_mutable = fun
-  [ Variable mut _ -> mut.val
-  | Builtin _ _ _ -> False ];
-
 type t =
   [ Quote of Scheme.t
   | Reference of binding
@@ -23,7 +9,24 @@ type t =
   (*| Define of binding and t*)
   | Set of binding and t
   | Let of list binding and list t and t (* (letrec ...) *)
-  | Application of t and list t ];
+  | Application of t and list t ]
+
+and binding =
+  [ Variable of ref bool and string
+  (* bool is mutable flag, string is Ocaml name *)
+  | Builtin of option (int * string) and list (int * string) and string
+  (* int is arity, string is Ocaml name *)
+  | Syntax of int -> M.t binding -> Scheme.t -> t ];
+
+value binding_name = fun
+  [ Variable _ name
+  | Builtin _ _ name -> name
+  | _ -> failwith "binding_name" ];
+
+value binding_mutable = fun
+  [ Variable mut _ -> mut.val
+  | Syntax _
+  | Builtin _ _ _ -> False ];
 
 value rec emit_quote = fun
   [ Scheme.Num n ->
@@ -83,6 +86,7 @@ and emit_separated sep = fun
 
 and emit = fun
   [ Quote q -> emit_quote q
+  | Reference (Syntax _) -> failwith "emit: cannot reference syntax"
   | Reference (Variable mut name) ->
       if mut.val then
         Printf.printf "%s.val" name
@@ -223,7 +227,7 @@ and emit = fun
           Printf.printf "| _ -> failwith \"incorrect arity\" ]))"
         }
       } else do {
-        Printf.printf "(Lambda%d (fun %s -> " (List.length args)
+        Printf.printf "(Scheme.Lambda%d (fun %s -> " (List.length args)
           (if List.length args = 0 then "()" else String.concat " " (List.map
           binding_name args));
         List.iter (fun arg ->
@@ -243,6 +247,8 @@ and emit = fun
       emit iffalse;
       Printf.printf ")"
     }
+  | Application (Reference (Syntax _)) args ->
+      failwith "emit: cannot emit for syntax"
   | Application (Reference (Builtin (Some (0, "Scheme.vector"))
       [] "vector")) args -> do {
       Printf.printf "(Scheme.Vector [|";
@@ -304,6 +310,7 @@ and emit = fun
     if List.length args < 5 then do {
       Printf.printf "(Scheme.apply%d " (List.length args);
       emit f;
+      Printf.printf " ";
       emit_separated " " args;
       Printf.printf ")"
     } else do {

@@ -40,7 +40,7 @@ value builtins = [
   ("list?", None, [(1, "Scheme.is_list")]);
   ("list", Some (0, "Scheme.list"), []);
   ("length", None, [(1, "Scheme.length")]);
-  ("append", Some (0, "Scheme.append"), []);
+  ("append", Some (0, "Scheme.append"), [(2,"Scheme.append2")]);
   ("reverse", None, [(1, "Scheme.reverse")]);
   ("list-tail", None, [(2, "Scheme.list_tail")]);
   ("list-ref", None, [(2, "Scheme.list_ref")]);
@@ -90,7 +90,3 @@ value builtins = [
   ("close-output-port", None, [(1, "Scheme.close_output_port")]);
   ("error", Some (0, "Scheme.error"), [])
 ];
-
-value populate env =
-  List.fold_left (fun env (name, varargs, impls) ->
-    Ast.M.add name (Emit.Builtin varargs impls name) env) env builtins;

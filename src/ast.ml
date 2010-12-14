@@ -37,6 +37,10 @@ value mangle s =
   String.concat "" ["_" ^ (string_of_int count) ^ "_" ::
     List.map mangle_char (string_to_list s)]};
 
+value populate env =
+  List.fold_left (fun env (name, varargs, impls) ->
+    M.add name (Emit.Builtin varargs impls name) env) env Builtins.builtins;
+
 (* analyze_program : Emit.binding M.t -> Scheme.t -> Emit.t
  *
  * This is the entry to the syntax analysis phase of the compiler.
@@ -66,7 +70,7 @@ value mangle s =
  * otherwise, we just take the corresponding scheme expression and tack
  * it in at the end of the sequence. *)
 
-value rec analyze_program env x =
+value rec analyze_program x =
   let rec loop x =
     match x with
     [ [] -> Scheme.Nil
@@ -141,6 +145,20 @@ value rec analyze_program env x =
     Scheme.car = Scheme.Symbol "begin";
     Scheme.cdr = loop x
   } in do {
+    let env = populate M.empty in
+    let env = M.add "begin" (Emit.Syntax analyze_begin) env in
+    let env = M.add "lambda" (Emit.Syntax analyze_lambda) env in
+    (*let env = M.add "define" (Emit.Syntax analyze_define) env in*)
+    let env = M.add "set!" (Emit.Syntax analyze_set) env in
+    let env = M.add "quote" (Emit.Syntax analyze_quote) env in
+    let env = M.add "quasiquote" (Emit.Syntax analyze_quasiquote) env in
+    let env = M.add "if" (Emit.Syntax analyze_alternative) env in
+    let env = M.add "let" (Emit.Syntax analyze_let) env in
+    let env = M.add "let*" (Emit.Syntax analyze_let_star) env in
+    let env = M.add "letrec" (Emit.Syntax analyze_letrec) env in
+    let env = M.add "cond" (Emit.Syntax analyze_cond) env in
+    let env = M.add "and" (Emit.Syntax analyze_and) env in
+    let env = M.add "or" (Emit.Syntax analyze_or) env in
     (* Printf.eprintf "DEBUG:\n%s\n%!" (Scheme.to_string x'); *)
     analyze 0 env x'
   }
@@ -167,32 +185,21 @@ and map_to_list f = fun
 
 and analyze_cons qq env car cdr =
   match car with
-  [ Scheme.Symbol "begin" -> Emit.Begin (map_to_list (analyze qq env) cdr)
-  | Scheme.Symbol "lambda" -> analyze_lambda qq env cdr
-  | Scheme.Symbol "define" -> failwith "(define) not allowed here" (* analyze_define qq env cdr *)
-  | Scheme.Symbol "set!" -> analyze_set qq env cdr
-  | Scheme.Symbol "quote" ->
-    match cdr with
-    [ Scheme.Cons {
-        Scheme.car = a;
-        Scheme.cdr = Scheme.Nil
-      } -> Emit.Quote a
-    | _ -> failwith "bad syntax in (quote)" ]
-  | Scheme.Symbol "quasiquote" ->
-    match cdr with
-    [ Scheme.Cons {
-        Scheme.car = a;
-        Scheme.cdr = Scheme.Nil
-      } -> analyze_quasiquote (qq+1) env a (* None *)
-    | _ -> failwith "bad syntax in (quasiquote)" ]
-  | Scheme.Symbol "if" -> analyze_alternative qq env cdr
-  | Scheme.Symbol "let" -> analyze_let qq env cdr 
-  | Scheme.Symbol "let*" -> analyze_let_star qq env cdr
-  | Scheme.Symbol "letrec" -> analyze_letrec qq env cdr
-  | Scheme.Symbol "cond" -> analyze_cond qq env cdr
-  | Scheme.Symbol "and" -> analyze_and qq env cdr
-  | Scheme.Symbol "or" -> analyze_or qq env cdr
+  [ Scheme.Symbol s ->
+      try match M.find s env with
+      [ Emit.Syntax syn -> syn qq env cdr
+      | _ ->
+          Emit.Application (analyze qq env car) (map_to_list (analyze qq env) cdr) ]
+      with [ Not_found -> failwith ("unknown identifier: " ^ s) ]
   | _ -> Emit.Application (analyze qq env car) (map_to_list (analyze qq env) cdr) ]
+
+and analyze_begin qq env cdr =
+  Emit.Begin (map_to_list (analyze qq env) cdr)
+
+and analyze_quote qq env cdr =
+  match cdr with
+  [ Scheme.Cons {Scheme.car=a;Scheme.cdr=Scheme.Nil} -> Emit.Quote a
+  | _ -> failwith "bad syntax in (quote)" ]
 
 and analyze_body qq env cdr =
   let rec loop cdr =
@@ -246,6 +253,10 @@ and analyze_body qq env cdr =
         };
         Scheme.cdr = rest
       } -> assert False
+        (* let (begin', rest') = loop rest in
+        match rest' with
+        [ Nil -> Scheme.append begin' (loop rest)
+        | _ -> failwith "bad syntax in (begin)" ] *)
         (* let (begin', rest') = loop rest in
         let rec help defs =
           match defs with
@@ -379,6 +390,7 @@ and analyze_set qq env cdr =
         mut.val := True;
         Emit.Set v (analyze qq env exp)
       }
+      | Emit.Syntax _ -> failwith "cannot! a syntax"
       | Emit.Builtin _ _ _ -> failwith "cannot set! a builtin" ]
       with [ Not_found -> failwith "cannot set! an undefined variable" ]
   | _ -> failwith "bad syntax in set!" ]
@@ -575,11 +587,13 @@ and analyze_or qq env cdr =
  *
  * Taken from Bawden, Quasiquotations in Lips *)
 
-and analyze_quasiquote qq env car =
+and analyze_quasiquote qq env cdr =
+  match cdr with
+  [ Scheme.Cons{Scheme.car=a;Scheme.cdr=Scheme.Nil}->
   let append = Emit.Reference
     (Emit.Builtin (Some (0, "Scheme.append")) [] "append") in
   let cons = Emit.Reference (Emit.Builtin None [(2, "Scheme.cons")] "cons") in
-  match car with
+  match a with
   [ Scheme.Cons {
       Scheme.car = Scheme.Symbol "unquote";
       Scheme.cdr = Scheme.Cons {
@@ -613,7 +627,8 @@ and analyze_quasiquote qq env car =
       Emit.Application append
         [analyze_quasiquote_list qq env a;
           analyze_quasiquote qq env b]
-  | _ -> Emit.Quote car ]
+  | _ -> Emit.Quote a ]
+  | _ -> failwith "bad syntax in (quasiquote)" ]
 
 and analyze_quasiquote_list qq env car =
   let append = Emit.Reference (Emit.Builtin (Some (0, "Scheme.append")) []

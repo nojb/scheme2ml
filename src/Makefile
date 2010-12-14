@@ -1,5 +1,5 @@
 OBJS = scheme.cmx parser.cmx lexer.cmx emit.cmx \
-					ast.cmx builtins.cmx s2ml.cmx
+					builtins.cmx ast.cmx s2ml.cmx
 CAMLP = camlp5r
 PP = -pp $(CAMLP)
 INCLUDES =
@@ -16,8 +16,8 @@ simple:
 	$(OCAMLOPT) -c parser.mli parser.ml
 	$(OCAMLOPT) -c lexer.ml
 	$(OCAMLOPT) $(PP) -c emit.ml
-	$(OCAMLOPT) $(PP) -c ast.ml
 	$(OCAMLOPT) $(PP) -c builtins.ml
+	$(OCAMLOPT) $(PP) -c ast.ml
 	$(OCAMLOPT) $(PP) -c s2ml.ml
 	$(OCAMLOPT) $(LIBS) $(OBJS) -o s2ml.opt
 
