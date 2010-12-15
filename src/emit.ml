@@ -3,7 +3,10 @@ module M = Map.Make String;
 type variable = {
   name : string;
   mut : mutable bool;
-  referenced : mutable bool
+  referenced : mutable bool;
+  closure : mutable bool;
+  varargs : mutable bool;
+  arity : mutable int
 };
 
 type t =
@@ -296,12 +299,35 @@ and emit_application f args =
         Printf.printf ")"
       }
     }
-  | Reference (Variable var) when not var.mut -> do {
+  | Reference (Variable var) when not var.mut && var.closure -> do {
       Printf.printf "(imp_%s " var.name;
-      if List.length args > 0 then
-        emit_separated " " emit args
-      else
-        Printf.printf "()";
+      if var.varargs && (var.arity-1) > List.length args then
+        failwith (var.name ^ ": arity error")
+      else if List.length args > 0 then do {
+        let rec loop args i =
+          if i >= (var.arity-1) && var.varargs then
+            let rec loop2 args =
+              match args with
+              [ [] -> Printf.printf " Scheme.Nil "
+              | [a :: b] -> do {
+                  Printf.printf " (Scheme.Cons { Scheme.car = ";
+                  emit a;
+                  Printf.printf " ; Scheme.cdr = ";
+                  loop2 b;
+                  Printf.printf " }) "
+                } ]
+            in loop2 args
+          else if i < var.arity then
+            match args with
+            [ [] -> failwith (var.name ^ ": arity error")
+            | [a :: b] -> do {
+                emit a;
+                Printf.printf " ";
+                loop b (i+1)
+              } ]
+          else ()
+        in loop args 0
+      } else Printf.printf "()";
       Printf.printf ")"
     }
   | _ ->
