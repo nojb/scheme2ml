@@ -3,7 +3,7 @@ module M = Map.Make String;
 type variable = {
   name : string;
   mut : mutable bool;
-  closure : mutable bool
+  referenced : mutable bool
 };
 
 type t =
@@ -36,7 +36,18 @@ value binding_mutable = fun
   | Syntax _
   | Builtin _ _ _ -> False ];
 
-value rec emit_separated sep f = fun
+value rec emit_separated_last sep f last x =
+  match x with
+  [ [] -> ()
+  | [a] -> last a
+  | [a :: b] -> do {
+      f a;
+      Printf.printf "%s" sep;
+      emit_separated_last sep f last b
+    } ];
+
+value rec emit_separated sep f x =
+  match x with
   [ [] -> ()
   | [a] -> f a
   | [a :: b] -> do {
@@ -50,21 +61,7 @@ value rec emit x =
   [ Quote q -> emit_quote q
   | Reference binding -> emit_reference binding
   | Application f args -> emit_application f args
-  | Begin ls -> do {
-      Printf.printf "(do { ";
-      let rec loop ls =
-        match ls with
-        [ [] -> Printf.printf "Scheme.Void"
-        | [a] -> emit a
-        | [a :: b] -> do {
-          Printf.printf "ignore (";
-          emit a;
-          Printf.printf "); ";
-          loop b
-        } ]
-      in loop ls;
-      Printf.printf "})"
-    }
+  | Begin ls -> emit_begin ls
   (*| Define b exp -> do {
       Printf.printf "value rec %s = " (binding_name b);
       if binding_mutable b then do {
@@ -81,36 +78,8 @@ value rec emit x =
   | Let [] [] body -> emit body
   | Let variables inits body -> emit_let variables inits body
   | Lambda varargs args body -> emit_lambda varargs args body
-  | If cond iftrue iffalse -> do {
-      Printf.printf "(if (Scheme.is_true ";
-      emit cond;
-      Printf.printf ") then ";
-      emit iftrue;
-      Printf.printf " else ";
-      emit iffalse;
-      Printf.printf ")"
-    }
-  | Case key [] elseclause -> do {
-      Printf.printf "(let _ = ";
-      emit key;
-      Printf.printf " in ";
-      emit elseclause;
-      Printf.printf ")"
-    }
-  | Case key clauses elseclause -> do {
-      Printf.printf "(match ";
-      emit key;
-      Printf.printf " with [ ";
-      emit_separated "|"
-        (fun (ds, e) -> do {
-          emit_separated " | " emit_quote ds;
-          Printf.printf " -> ";
-          emit e })
-        clauses;
-      Printf.printf " | _ -> ";
-      emit elseclause;
-      Printf.printf "])"
-    }
+  | If cond iftrue iffalse -> emit_if cond iftrue iffalse
+  | Case key clause elseclause -> emit_case key clause elseclause
   | Delay promise -> do {
       Printf.printf "(Scheme.Promise (lazy ";
       emit promise;
@@ -156,15 +125,60 @@ and emit_quote = fun
   | Scheme.Boolean True -> Printf.printf "Scheme.t"
   | Scheme.Boolean False -> Printf.printf "Scheme.f"
   | Scheme.Void -> Printf.printf "Scheme.Void"
-  | Scheme.In _
-  | Scheme.Out _
-  | Scheme.Promise _
-  | Scheme.Lambda _
-  | Scheme.Lambda0 _
-  | Scheme.Lambda1 _
-  | Scheme.Lambda2 _
-  | Scheme.Lambda3 _
+  | Scheme.In _ | Scheme.Out _ | Scheme.Promise _
+  | Scheme.Lambda _ | Scheme.Lambda0 _ | Scheme.Lambda1 _
+  | Scheme.Lambda2 _ | Scheme.Lambda3 _
   | Scheme.Lambda4 _ -> failwith "Emit.emit_quote" ]
+
+and emit_begin ls = do {
+  Printf.printf "(do { ";
+  let rec loop ls =
+    match ls with
+    [ [] -> Printf.printf "Scheme.Void"
+    | [a] -> emit a
+    | [a :: b] -> do {
+      Printf.printf "ignore (";
+      emit a;
+      Printf.printf "); ";
+      loop b
+    } ]
+  in loop ls;
+  Printf.printf "})"
+}
+
+and emit_if cond iftrue iffalse = do {
+  Printf.printf "(if (Scheme.is_true ";
+  emit cond;
+  Printf.printf ") then ";
+  emit iftrue;
+  Printf.printf " else ";
+  emit iffalse;
+  Printf.printf ")"
+}
+
+and emit_case key clauses elseclause =
+  match clauses with
+  [ [] -> do {
+      Printf.printf "(let _ = ";
+      emit key;
+      Printf.printf " in ";
+      emit elseclause;
+      Printf.printf ")"
+    }
+  | clauses -> do {
+      Printf.printf "(match ";
+      emit key;
+      Printf.printf " with [ ";
+      emit_separated "|"
+        (fun (ds, e) -> do {
+          emit_separated " | " emit_quote ds;
+          Printf.printf " -> ";
+          emit e })
+        clauses;
+      Printf.printf " | _ -> ";
+      emit elseclause;
+      Printf.printf "])"
+    } ]
 
 and emit_reference binding =
   match binding with
@@ -282,6 +296,14 @@ and emit_application f args =
         Printf.printf ")"
       }
     }
+  | Reference (Variable var) when not var.mut -> do {
+      Printf.printf "(imp_%s " var.name;
+      if List.length args > 0 then
+        emit_separated " " emit args
+      else
+        Printf.printf "()";
+      Printf.printf ")"
+    }
   | _ ->
     if List.length args < 5 then do {
       Printf.printf "(Scheme.apply%d " (List.length args);
@@ -306,39 +328,124 @@ and emit_application f args =
       in loop args; Printf.printf "))"
     } ]
 
-and emit_let variables inits body = do {
-  Printf.printf "(let rec ";
-  let rec loop variables inits =
-    match (variables, inits) with
-    [ ([], []) -> assert False
-    | ([a], [b]) -> do {
-        Printf.printf "%s = " a.name;
-        if a.mut then
+and emit_let variables inits body =
+  let emit_var var init =
+    match init with
+    [ Lambda _ [] body when not var.mut -> do {
+        Printf.printf "imp_%s = fun () -> " var.name;
+        emit body;
+        if var.referenced then
+          Printf.printf " and %s = (Scheme.Lambda0 imp_%s)"
+            var.name var.name
+        else ();
+        Printf.printf " and "
+      }
+    | Lambda varargs args body when not var.mut -> do {
+        Printf.printf "imp_%s = fun %s -> " var.name
+          (String.concat " " (List.map (fun arg -> arg.name) args));
+        List.iter (fun arg ->
+          if arg.mut then
+            Printf.printf "let %s = ref %s in " arg.name arg.name
+          else ()) args;
+        emit body;
+        if var.referenced then do {
+          Printf.printf " and %s = " var.name;
+          if List.length args < 5 then
+            Printf.printf "(Scheme.Lambda%d imp_%s)" (List.length args) var.name
+          else
+            emit_lambda_body varargs args (fun () ->
+              Printf.printf "imp_%s %s" var.name
+                (String.concat " " (List.map (fun a -> a.name) args)))
+        } else ();
+        Printf.printf " and "
+      }
+    | _ -> do {
+        Printf.printf "%s = " var.name;
+        if var.mut then
           Printf.printf "ref ("
         else ();
-        emit b;
-        if a.mut then
+        emit init;
+        if var.mut then
           Printf.printf ")"
+        else ();
+        Printf.printf " and "
+      } ]
+  in let emit_last_var var init =
+    match init with
+    [ Lambda _ [] body when not var.mut -> do {
+        Printf.printf "imp_%s = fun () -> " var.name;
+        emit body;
+        if var.referenced then
+          Printf.printf " and %s = (Scheme.Lambda0 imp_%s)"
+            var.name var.name
         else ();
         Printf.printf " in "
       }
-    | ([a :: a'], [b :: b']) -> do {
-        Printf.printf "%s = " a.name;
-        if a.mut then
+    | Lambda varargs args body when not var.mut -> do {
+        Printf.printf "imp_%s = fun %s -> " var.name
+          (String.concat " " (List.map (fun arg -> arg.name) args));
+        List.iter (fun arg ->
+          if arg.mut then
+            Printf.printf "let %s = ref %s in " arg.name arg.name
+          else ()) args;
+        emit body;
+        if var.referenced then do {
+          Printf.printf " and %s = " var.name;
+          if List.length args < 5 then
+            Printf.printf "(Scheme.Lambda%d imp_%s)" (List.length args) var.name
+          else
+            emit_lambda_body varargs args (fun () ->
+              Printf.printf "imp_%s %s" var.name
+                (String.concat " " (List.map (fun a -> a.name) args)))
+        } else ();
+        Printf.printf " in "
+      }
+    | _ -> do {
+        Printf.printf "%s = " var.name;
+        if var.mut then
           Printf.printf "ref ("
         else ();
-        emit b;
-        if a.mut then
+        emit init;
+        if var.mut then
           Printf.printf ")"
         else ();
-        Printf.printf " and ";
-        loop a' b'
-      }
-    | _ -> assert False ]
-  in
-  loop variables inits;
-  emit body;
-  Printf.printf ")"
+        Printf.printf " in "
+      } ]
+  in do {
+    Printf.printf "(let rec ";
+    let rec loop variables inits =
+      match (variables, inits) with
+      [ ([], []) -> assert False
+      | ([a], [b]) -> emit_last_var a b
+      | ([a :: a'], [b :: b']) -> do {
+          emit_var a b;
+          loop a' b'
+        }
+      | _ -> assert False ]
+    in
+    loop variables inits;
+    emit body;
+    Printf.printf ")"
+  }
+
+and emit_lambda_body varargs args f = do {
+  Printf.printf "(Scheme.Lambda (fun args -> ";
+  Printf.printf "match args with [";
+  let rec loop acc args =
+    match args with
+    [ [] -> "Scheme.Nil " ^ String.make acc '}'
+    | [a] ->
+        if varargs then a.name ^ (String.make acc '}')
+        else "Scheme.Cons { Scheme.car = " ^ a.name ^
+          "; Scheme.cdr = Scheme.Nil " ^ (String.make (acc+1) '}')
+    | [a :: b] ->
+        "Scheme.Cons {Scheme.car = " ^ a.name ^
+        "; Scheme.cdr = " ^ (loop (acc+1) b) ]
+  in do {
+    Printf.printf "%s -> " (loop 0 args);
+    f ();
+    Printf.printf "| _ -> failwith \"incorrect arity\" ]))"
+  }
 }
 
 and emit_lambda varargs args body =

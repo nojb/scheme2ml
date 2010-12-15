@@ -67,3 +67,16 @@ value is_eof_object obj =
 
 value is_char_ready () =
   is_char_ready_on_port current_in.val;*)
+
+(*
+class input_port = object
+  method virtual peek : unit -> char;
+  method virtual read_char : unit -> char;
+  method virtual is_char_ready : unit -> bool;
+  method virtual lexbuf : unit -> Lexing.lexbuf;
+end;
+
+class output_port = object
+  method virtual write_char : char -> unit;
+end;
+*)
