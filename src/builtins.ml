@@ -1,4 +1,5 @@
 value builtins = [
+  ("apply", Some (1, "Scheme.apply"), []);
   ("+", Some (0, "Scheme.add"), [(2, "Scheme.add2")]);
   ("*", Some (0, "Scheme.mul"), [(2, "Scheme.mul2")]);
   ("-", Some (0, "Scheme.sub"), [(2, "Scheme.sub2")]);
