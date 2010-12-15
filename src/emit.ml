@@ -169,14 +169,25 @@ and emit_case key clauses elseclause =
       Printf.printf ")"
     }
   | clauses -> do {
+      let emit_pattern d =
+        match d with
+        [ Scheme.Symbol s ->
+          Printf.printf "Scheme.Symbol _ as s when (Scheme.intern \"%s\" == s)"
+            s
+        | _ -> emit_quote d ]
+      in
       Printf.printf "(match ";
       emit key;
       Printf.printf " with [ ";
       emit_separated "|"
-        (fun (ds, e) -> do {
-          emit_separated " | " emit_quote ds;
-          Printf.printf " -> ";
-          emit e })
+        (fun (ds, e) -> (* do { *)
+          emit_separated " | " (fun d -> do {
+            emit_pattern d;
+            Printf.printf " -> ";
+            emit e
+          }) ds)
+          (*Printf.printf " -> ";
+          emit e })*)
         clauses;
       Printf.printf " | _ -> ";
       emit elseclause;

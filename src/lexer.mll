@@ -16,11 +16,11 @@ rule token = parse
   {
     token lexbuf
   }
-  | "#t"
+  | "#t" | "#T"
   {
     TRUE
   }
-  | "#f"
+  | "#f" | "#F"
   {
     FALSE
   }

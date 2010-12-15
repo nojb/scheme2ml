@@ -4,6 +4,7 @@ value builtins = [
   ("+", Some (0, "Scheme.add"), [(2, "Scheme.add2")]);
   ("*", Some (0, "Scheme.mul"), [(2, "Scheme.mul2")]);
   ("-", Some (0, "Scheme.sub"), [(2, "Scheme.sub2")]);
+  ("remainder", None, [(2, "Scheme.remainder")]);
   ("eq?", None, [(2, "Scheme.is_eq")]);
   ("eqv?", None, [(2, "Scheme.is_eqv")]);
   ("equal?", None, [(2, "Scheme.is_equal")]);
@@ -105,5 +106,5 @@ value builtins = [
   ("close-input-port", None, [(1, "Scheme.close_input_port")]);
   ("close-output-port", None, [(1, "Scheme.close_output_port")]);
   ("force", None, [(1, "Scheme.force")]);
-  ("error", Some (0, "Scheme.error"), [])
+  ("error", Some (1, "Scheme.error"), [])
 ];

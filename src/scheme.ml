@@ -174,6 +174,11 @@ value sub args =
   | Nil -> Num num_zero
   | _ -> failwith "-: bad arguments" ];
 
+value remainder n1 n2 =
+  match (n1, n2) with
+  [ (Num n1, Num n2) -> Num (Num.mod_num n1 n2)
+  | _ -> failwith "remainder: not a pair of ints" ];
+
 value cmp_nums name cmp z1 z2 rest =
   match (z1, z2) with
   [ (Num z1, Num z2) ->
@@ -926,8 +931,8 @@ value write_char_to_port char port =
     | _ -> failwith "write-char: not a port" ]
   | _ -> failwith "write-char: not a char" ];
 
-value error objs =
-  failwith ("error: " ^ (to_string objs));
+value error msg objs =
+  failwith ("error: " ^ (to_string msg) ^ ": " ^ (to_string objs));
 
 value force obj =
   match obj with
