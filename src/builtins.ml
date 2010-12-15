@@ -15,6 +15,8 @@ value builtins = [
   ("cdar", None, [(1, "Scheme.cdar")]);
   ("caaar", None, [(1, "Scheme.caaar")]);
   ("caddr", None, [(1, "Scheme.caddr")]);
+  ("cdadr", None, [(1, "Scheme.cdadr")]);
+  ("cdddr", None, [(1, "Scheme.cdddr")]);
   ("caadr", None, [(1, "Scheme.caadr")]);
   ("cadddr", None, [(1, "Scheme.cadddr")]);
   ("display", None, [(1, "Scheme.display")]);

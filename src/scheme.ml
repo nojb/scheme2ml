@@ -372,6 +372,14 @@ value caadr = fun
   [ Cons{car=_;cdr=Cons{car=Cons{car=a;cdr=_};cdr=_}} -> a
   | _ -> failwith "caadr: bad args" ];
 
+value cdddr = fun
+  [ Cons{car=_;cdr=Cons{car=_;cdr=Cons{car=_;cdr=a}}} -> a
+  | _ -> failwith "cdddr: bad args" ];
+
+value cdadr = fun
+  [ Cons{car=_;cdr=Cons{car=Cons{car=_;cdr=a};cdr=_}} -> a
+  | _ -> failwith "cdadr: bad args" ];
+
 value cadddr = fun
   [ Cons{car=_;cdr=Cons{car=_;cdr=Cons{car=_;cdr=Cons{car=a;cdr=_}}}} -> a
   | _ -> failwith "cadddr: bad args" ];
