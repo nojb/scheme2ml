@@ -48,9 +48,9 @@ value rec emit_quote = fun
       Printf.printf "(Scheme.Num (Num.num_of_string \"%s\"))"
         (Num.string_of_num n)
   | Scheme.Char char ->
-      Printf.printf "(Scheme.Char '%s')" (Char.escaped char)
+      Printf.printf "(Scheme.Char '%c')" char
   | Scheme.String string ->
-      Printf.printf "(Scheme.String \"%s\")" (String.escaped string)
+      Printf.printf "(Scheme.String \"%s\")" string
   | Scheme.Cons cons -> do {
       Printf.printf "(Scheme.Cons { Scheme.car = ";
       emit_quote cons.Scheme.car;

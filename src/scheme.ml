@@ -325,6 +325,11 @@ value is_integer obj =
   [ Num n -> if Num.is_integer_num n then t else f
   | _ -> f ];
 
+value is_number obj =
+  match obj with
+  [ Num n -> t
+  | _ -> f ];
+
 value car = fun
   [ Cons cons -> cons.car
   | _ -> failwith "car: not a pair" ];
@@ -340,6 +345,10 @@ value cadr = fun
 value cddr = fun
   [ Cons { car = _; cdr = Cons { car = _; cdr = a}} -> a
   | _ -> failwith "cddr: bad args" ];
+
+value cdar = fun
+  [ Cons{car=_;cdr=Cons{car=a;cdr=_}}->a
+  | _ -> failwith "cdar: bad args" ];
 
 value caar = fun
   [ Cons { car = Cons { car = a; cdr = _}; cdr = _} -> a

@@ -123,8 +123,91 @@ value rec map_to_list f cons =
  * otherwise, we just take the corresponding scheme expression and tack
  * it in at the end of the sequence. *)
 
+value parse_define x =
+  match x with
+  [ Scheme.Cons {
+      Scheme.car = Scheme.Symbol "define";
+      Scheme.cdr = a
+    } ->
+      match a with
+      [ Scheme.Cons {
+          Scheme.car = (Scheme.Symbol _ as a);
+          Scheme.cdr = Scheme.Cons {
+            Scheme.car = e;
+            Scheme.cdr = Scheme.Nil
+          }
+        } -> Some (a, e)
+      | Scheme.Cons {
+          Scheme.car = Scheme.Cons {
+            Scheme.car = (Scheme.Symbol _ as a);
+            Scheme.cdr = args
+          };
+          Scheme.cdr = body
+        } ->
+          Some (a, Scheme.Cons {
+            Scheme.car = Scheme.Symbol "lambda";
+            Scheme.cdr = Scheme.Cons {
+              Scheme.car = args;
+              Scheme.cdr = body
+            }
+          })
+      | _ -> failwith "bad syntax in (define)" ]
+  | _ -> None ];
+
+type d =
+  [ Def of list (Scheme.t * Scheme.t)
+  | Oth of Scheme.t ];
+
 value rec analyze_program x =
-  let rec loop x =
+  (* returns (defines, rest) *)
+  let loop x =
+  let rec extract_defines found x =
+    match x with
+    [ [] -> found
+    | [a :: b] ->
+      match parse_define a with
+      [ None -> extract_defines [Oth a :: found] b
+      | Some z ->
+          let rec loop zs x = (* zs is reversed *)
+            match x with
+            [ [] -> [Def zs :: found]
+            | [a :: b] ->
+              match parse_define a with
+              [ None -> extract_defines [Oth a; Def zs :: found] b
+              | Some z' -> loop [z' :: zs] b ] ]
+          in loop [z] b ] ]
+  in let defs = extract_defines [] x in (* reversed *)
+  let create_letrec zs rest =
+    let bindings = List.fold_left (fun rest (n, e) -> (* bindings + body *)
+      Scheme.Cons {
+        Scheme.car = Scheme.Cons {
+          Scheme.car = n;
+          Scheme.cdr = Scheme.Cons {
+            Scheme.car = e;
+            Scheme.cdr = Scheme.Nil
+          }
+        };
+        Scheme.cdr = rest
+      }) Scheme.Nil zs
+    in
+    Scheme.Cons {
+      Scheme.car = Scheme.Cons {
+        Scheme.car = Scheme.Symbol "letrec";
+        Scheme.cdr = Scheme.Cons {
+          Scheme.car = bindings;
+          Scheme.cdr = rest
+        }
+      };
+      Scheme.cdr = Scheme.Nil
+    }
+  in
+  List.fold_left (fun rest def ->
+    match def with
+    [ Def zs -> create_letrec zs rest
+    | Oth z -> Scheme.Cons {Scheme.car = z; Scheme.cdr = rest} ]) Scheme.Nil defs
+  in
+
+  (*let rec loop x =
     match x with
     [ [] -> Scheme.Nil
     | [a :: b] ->
@@ -193,7 +276,7 @@ value rec analyze_program x =
           Scheme.car = x;
           Scheme.cdr = loop b
         } ] ]
-  in
+  in*)
   let x' = Scheme.Cons {
     Scheme.car = Scheme.Symbol "begin";
     Scheme.cdr = loop x
@@ -695,11 +778,17 @@ and analyze_or qq env cdr =
 
 and analyze_quasiquote qq env cdr =
   match cdr with
-  [ Scheme.Cons{Scheme.car=a;Scheme.cdr=Scheme.Nil}->
+  [ Scheme.Cons {
+      Scheme.car = x;
+      Scheme.cdr = Scheme.Nil
+    } -> analyze_quasiquote_aux (qq+1) env x
+  | _ -> failwith "bad syntax in (quasiquote)" ]
+
+and analyze_quasiquote_aux qq env cdr =
   let append = Emit.Reference
-    (Emit.Builtin (Some (0, "Scheme.append")) [] "append") in
+    (Emit.Builtin (Some (0, "Scheme.append")) [(2,"Scheme.append2")] "append") in
   let cons = Emit.Reference (Emit.Builtin None [(2, "Scheme.cons")] "cons") in
-  match a with
+  match cdr with
   [ Scheme.Cons {
       Scheme.car = Scheme.Symbol "unquote";
       Scheme.cdr = Scheme.Cons {
@@ -732,9 +821,8 @@ and analyze_quasiquote qq env cdr =
     } ->
       Emit.Application append
         [analyze_quasiquote_list qq env a;
-          analyze_quasiquote qq env b]
-  | _ -> Emit.Quote a ]
-  | _ -> failwith "bad syntax in (quasiquote)" ]
+          analyze_quasiquote_aux qq env b]
+  | _ -> Emit.Quote cdr ]
 
 and analyze_quasiquote_list qq env car =
   let append = Emit.Reference (Emit.Builtin (Some (0, "Scheme.append")) []
@@ -787,7 +875,7 @@ and analyze_quasiquote_list qq env car =
     } ->
       Emit.Application list [Emit.Application append
         [analyze_quasiquote_list qq env a;
-        analyze_quasiquote qq env b]]
+        analyze_quasiquote_aux qq env b]]
   | _ -> Emit.Quote
     (Scheme.Cons {Scheme.car = car; Scheme.cdr = Scheme.Nil}) ]
 

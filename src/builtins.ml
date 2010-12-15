@@ -10,6 +10,7 @@ value builtins = [
   ("caar", None, [(1, "Scheme.caar")]);
   ("cadr", None, [(1, "Scheme.cadr")]);
   ("cddr", None, [(1, "Scheme.cddr")]);
+  ("cdar", None, [(1, "Scheme.cdar")]);
   ("caaar", None, [(1, "Scheme.caaar")]);
   ("caddr", None, [(1, "Scheme.caddr")]);
   ("caadr", None, [(1, "Scheme.caadr")]);
@@ -17,6 +18,7 @@ value builtins = [
   ("display", None, [(1, "Scheme.display")]);
   ("zero?", None, [(1, "Scheme.is_zero")]);
   ("integer?", None, [(1, "Scheme.is_integer")]);
+  ("number?", None, [(1, "Scheme.is_number")]);
   ("=", Some (2, "Scheme.eq"), []);
   ("<", Some (2, "Scheme.lt"), []);
   (">", Some (2, "Scheme.gt"), []);
@@ -26,7 +28,14 @@ value builtins = [
     [(0, "Scheme.newline");(1, "Scheme.newline_to_port")]);
   ("write-char", None,
     [(1, "Scheme.write_char"); (2, "Scheme.write_char_to_port")]);
-  ("read", None, [(0, "Scheme_read.read")]);
+  ("read", None, [(0, "Scheme_read.read"); (1, "Scheme_read.read_from_port")]);
+  ("read-char", None, [(0, "Scheme_read.read_char"); (1,
+    "Scheme_read.read_char_from_port")]);
+  ("peek-char", None, [(0, "Scheme_read.peek_char"); (1,
+    "Scheme_read.peek_char_from_port")]);
+  ("eof-object?", None, [(1, "Scheme_read.is_eof_object")]);
+  (*("char-ready?", None, [(0, "Scheme_read.is_char_ready"), (1,
+    "Scheme_read.is_char_ready_on_port")]);*)
   ("number->string", None, [(1, "Scheme.number_to_string")]);
   ("boolean?", None, [(1, "Scheme.is_boolean")]);
   ("not", None, [(1, "Scheme._not")]);
