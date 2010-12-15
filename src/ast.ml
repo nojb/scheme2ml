@@ -218,77 +218,6 @@ value rec analyze_program x =
     [ Def zs -> create_letrec zs rest
     | Oth z -> Scheme.Cons {Scheme.car = z; Scheme.cdr = rest} ]) Scheme.Nil defs
   in
-
-  (*let rec loop x =
-    match x with
-    [ [] -> Scheme.Nil
-    | [a :: b] ->
-      match a with
-      [ Scheme.Cons {
-          Scheme.car = Scheme.Symbol "define";
-          Scheme.cdr = define_cdr
-        } ->
-          match define_cdr with
-          [ Scheme.Cons ({
-            Scheme.car = Scheme.Symbol _;
-            Scheme.cdr = init
-          } as cons) ->
-        Scheme.Cons {
-          Scheme.car =
-        Scheme.Cons {
-          Scheme.car = Scheme.Symbol "letrec";
-          Scheme.cdr = Scheme.Cons {
-            Scheme.car = Scheme.Cons {
-              Scheme.car = Scheme.Cons {
-                Scheme.car = cons.Scheme.car;
-                Scheme.cdr = init
-              };
-              Scheme.cdr = Scheme.Nil
-            };
-            Scheme.cdr = loop b
-          }
-        };
-        Scheme.cdr = Scheme.Nil
-        }
-      | Scheme.Cons {
-            Scheme.car = Scheme.Cons ({
-              Scheme.car = Scheme.Symbol _;
-              Scheme.cdr = arguments
-            } as cons);
-            Scheme.cdr = body
-        } ->
-        Scheme.Cons {
-          Scheme.car = Scheme.Cons {
-          Scheme.car = Scheme.Symbol "letrec";
-          Scheme.cdr = Scheme.Cons {
-            Scheme.car = Scheme.Cons {
-              Scheme.car = Scheme.Cons {
-                Scheme.car = cons.Scheme.car;
-                Scheme.cdr = Scheme.Cons {
-                  Scheme.car = Scheme.Cons {
-                    Scheme.car = Scheme.Symbol "lambda";
-                    Scheme.cdr = Scheme.Cons {
-                      Scheme.car = arguments;
-                      Scheme.cdr = body
-                    }
-                  };
-                  Scheme.cdr = Scheme.Nil
-                }
-              };
-              Scheme.cdr = Scheme.Nil
-            };
-            Scheme.cdr = loop b
-          }
-          };
-          Scheme.cdr = Scheme.Nil
-        }
-      | _ -> failwith "bad syntax in (define)" ]
-      | x ->
-        Scheme.Cons {
-          Scheme.car = x;
-          Scheme.cdr = loop b
-        } ] ]
-  in*)
   let x' = Scheme.Cons {
     Scheme.car = Scheme.Symbol "begin";
     Scheme.cdr = loop x
@@ -309,7 +238,8 @@ value rec analyze_program x =
       ("or", analyze_or);
       ("case", analyze_case);
       ("delay", analyze_delay);
-      ("do", analyze_do) ]
+      ("do", analyze_do);
+      ("time", analyze_time) ]
     in
     let env = List.fold_left (fun env (name, varargs, impls) ->
       M.add name (Emit.Builtin varargs impls name) env) M.empty Builtins.builtins
@@ -1011,4 +941,12 @@ and analyze_do qq env cdr =
                       steps]))]
            (Emit.Application (Emit.Reference loop') inits)
       | _ -> failwith "bad syntax in (do)" ]
-  | _ -> failwith "bad syntax in (do)" ];
+  | _ -> failwith "bad syntax in (do)" ]
+
+and analyze_time qq env cdr =
+  match cdr with
+  [ Scheme.Cons {
+      Scheme.car = e;
+      Scheme.cdr = Scheme.Nil
+    } -> Emit.Time (analyze qq env e)
+  | _ -> failwith "bad syntax in (time)" ];

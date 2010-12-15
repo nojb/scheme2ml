@@ -17,7 +17,8 @@ type t =
   | Let of list variable and list t and t (* (letrec ...) *)
   | Application of t and list t
   | Case of t and list (list Scheme.t * t) and t
-  | Delay of t ]
+  | Delay of t
+  | Time of t ]
 
 and binding =
   [ Variable of variable
@@ -114,7 +115,8 @@ value rec emit x =
       Printf.printf "(Scheme.Promise (lazy ";
       emit promise;
       Printf.printf "))"
-    } ]
+    }
+  | Time e -> emit_time e ]
 
 and emit_quote = fun
   [ Scheme.Num n ->
@@ -373,4 +375,11 @@ and emit_lambda varargs args body =
       else ()) args;
     emit body;
     Printf.printf "))"
-  };
+  }
+
+and emit_time e = do {
+  Printf.printf "(let t = Sys.time () in let e = ";
+  emit e;
+  Printf.printf " in let t' = Sys.time () in ";
+  Printf.printf "do{Printf.printf \"time: %%f\\n\" (t' -. t);e})"
+};
