@@ -54,12 +54,7 @@ value symbols = W.create 10;
  * pointer-compare the string!, not the symbol. cf.
  * the definition of eqp below *)
 
-value intern s =
-  let s = Symbol s in
-  try W.find symbols s
-  with [ Not_found -> do {
-    W.add symbols s; s
-  } ];
+value intern s = W.merge symbols (Symbol s);
 
 value is_procedure obj =
   match obj with
