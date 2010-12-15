@@ -62,9 +62,9 @@ cleanall: clean
 %.poo.mli: %.mli
 	camlp5o pr_o.cmo pr_op.cmo $<
 
-scheme_read.cmx: scheme_read.ml lexer.cmx parser.cmx
-	$(OCAMLOPT) $(PP) -c scheme_read.ml
+scheme_io.cmx: scheme_io.ml lexer.cmx parser.cmx
+	$(OCAMLOPT) $(PP) -c scheme_io.ml
 
-%.scm: s2ml.opt scheme.cmx scheme_read.cmx phony
+%.scm: s2ml.opt scheme.cmx scheme_io.cmx phony
 	./s2ml.opt < $@ | camlp5r pr_r.cmo pr_rp.cmo -impl - > `basename $@ .scm`.ml
-	$(OCAMLOPT) $(PP) $(LIBS) scheme.cmx parser.cmx lexer.cmx scheme_read.cmx `basename $@ .scm`.ml -o `basename $@ .scm`
+	$(OCAMLOPT) $(PP) $(LIBS) scheme.cmx parser.cmx lexer.cmx scheme_io.cmx `basename $@ .scm`.ml -o `basename $@ .scm`

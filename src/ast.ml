@@ -99,6 +99,15 @@ value rec fold_right_cons f cons z =
       f a (fold_right_cons f b z)
   | _ -> raise NotAList ];
 
+value rec cons_append cons1 cons2 =
+  match cons1 with
+  [ Scheme.Cons {Scheme.car=a;Scheme.cdr=Scheme.Nil} ->
+    Scheme.Cons {Scheme.car=a;Scheme.cdr=cons2}
+  | Scheme.Nil -> cons2
+  | Scheme.Cons {Scheme.car=a;Scheme.cdr=b }->
+      Scheme.Cons {Scheme.car=a;Scheme.cdr=cons_append b cons2}
+  | _ -> invalid_arg "cons_append" ];
+
 value rec map_to_list f cons =
   match cons with
   [ Scheme.Nil -> []
@@ -339,22 +348,13 @@ and analyze_body qq env cdr =
           Scheme.cdr = defs
         };
         Scheme.cdr = rest
-      } -> assert False
-        (* let (begin', rest') = loop rest in
+      } ->
+        let (begin', rest') = loop defs in
         match rest' with
-        [ Nil -> Scheme.append begin' (loop rest)
-        | _ -> failwith "bad syntax in (begin)" ] *)
-        (* let (begin', rest') = loop rest in
-        let rec help defs =
-          match defs with
-          [ Scheme.Cons {
-              Scheme.car = Scheme.Cons {
-                Scheme.car = Scheme.Symbol "define";
-                Scheme.cdr = def
-              };
-              Scheme.cdr = rest
-            } ->
-*)
+        [ Scheme.Nil ->
+          let (begin'', rest'') = loop rest in
+          (cons_append begin' begin'', rest'')
+        | _ -> failwith "bad syntax in (begin)" ]
     | x -> (Scheme.Nil, x) ]
   in
   let (begin, rest) = loop cdr in
@@ -949,6 +949,16 @@ and analyze_do qq env cdr =
                     Emit.Application (Emit.Reference loop')
                       steps]))]
            (Emit.Application (Emit.Reference loop') inits)
+      | Scheme.Nil ->
+          let loop = new_var_no_mangle "loop" in
+          let loop' = Emit.Variable loop in
+          Emit.Let [loop]
+            [Emit.Lambda False vars'
+              (Emit.Begin
+                [Emit.Begin body;
+                  Emit.Application (Emit.Reference loop')
+                    steps])]
+            (Emit.Application (Emit.Reference loop') inits)
       | _ -> failwith "bad syntax in (do)" ]
   | _ -> failwith "bad syntax in (do)" ]
 

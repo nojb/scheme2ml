@@ -61,6 +61,12 @@ value intern s =
     W.add symbols s; s
   } ];
 
+value is_procedure obj =
+  match obj with
+  [ Lambda _ | Lambda0 _ | Lambda1 _
+  | Lambda2 _ | Lambda3 _ | Lambda4 _ -> t
+  | _ -> f ];
+
 value is_eq a b =
   if a == b then t else f;
 
@@ -875,6 +881,7 @@ value close_output_port port =
 
 value newline () = do {
   output_char current_out.val '\n';
+  flush current_out.val;
   Void
 };
 
@@ -882,6 +889,7 @@ value newline_to_port port =
   match port with
   [ Out port -> do {
       output_char port '\n';
+      flush port;
       Void
     }
   | _ -> failwith "newline: not a port" ];

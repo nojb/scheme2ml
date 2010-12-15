@@ -1,4 +1,5 @@
 value builtins = [
+  ("procedure?", None, [(1, "Scheme.is_procedure")]);
   ("apply", Some (1, "Scheme.apply"), []);
   ("+", Some (0, "Scheme.add"), [(2, "Scheme.add2")]);
   ("*", Some (0, "Scheme.mul"), [(2, "Scheme.mul2")]);
@@ -17,6 +18,7 @@ value builtins = [
   ("caadr", None, [(1, "Scheme.caadr")]);
   ("cadddr", None, [(1, "Scheme.cadddr")]);
   ("display", None, [(1, "Scheme.display")]);
+  ("write", None, [(1, "Scheme.display")]);
   ("zero?", None, [(1, "Scheme.is_zero")]);
   ("integer?", None, [(1, "Scheme.is_integer")]);
   ("number?", None, [(1, "Scheme.is_number")]);
@@ -29,14 +31,14 @@ value builtins = [
     [(0, "Scheme.newline");(1, "Scheme.newline_to_port")]);
   ("write-char", None,
     [(1, "Scheme.write_char"); (2, "Scheme.write_char_to_port")]);
-  ("read", None, [(0, "Scheme_read.read"); (1, "Scheme_read.read_from_port")]);
-  ("read-char", None, [(0, "Scheme_read.read_char"); (1,
-    "Scheme_read.read_char_from_port")]);
-  ("peek-char", None, [(0, "Scheme_read.peek_char"); (1,
-    "Scheme_read.peek_char_from_port")]);
-  ("eof-object?", None, [(1, "Scheme_read.is_eof_object")]);
-  (*("char-ready?", None, [(0, "Scheme_read.is_char_ready"), (1,
-    "Scheme_read.is_char_ready_on_port")]);*)
+  ("read", None, [(0, "Scheme_io.read"); (1, "Scheme_io.read_from_port")]);
+  ("read-char", None, [(0, "Scheme_io.read_char"); (1,
+    "Scheme_io.read_char_from_port")]);
+  ("peek-char", None, [(0, "Scheme_io.peek_char"); (1,
+    "Scheme_io.peek_char_from_port")]);
+  ("eof-object?", None, [(1, "Scheme_io.is_eof_object")]);
+  (*("char-ready?", None, [(0, "Scheme_io.is_char_ready"), (1,
+    "Scheme_io.is_char_ready_on_port")]);*)
   ("number->string", None, [(1, "Scheme.number_to_string")]);
   ("boolean?", None, [(1, "Scheme.is_boolean")]);
   ("not", None, [(1, "Scheme._not")]);
