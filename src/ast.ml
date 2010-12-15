@@ -37,6 +37,18 @@ value mangle s =
   String.concat "" ["_" ^ (string_of_int count) ^ "_" ::
     List.map mangle_char (string_to_list s)]};
 
+value new_var name = {
+    Emit.name = mangle name;
+    Emit.mut = False;
+    Emit.closure = False
+  };
+
+value new_var_no_mangle name closure = {
+    Emit.name = name;
+    Emit.mut = False;
+    Emit.closure = closure
+  };
+
 exception NotAList;
 
 value rec iter_cons f cons =
@@ -480,10 +492,9 @@ and analyze_letrec qq env cdr =
         | _ -> failwith "bad syntax in (letrec)" ]
       in
       let (variables, inits) = List.split (loop bindings) in
-      let variables' = List.map (fun variable ->
-        Emit.Variable (ref False) (mangle variable)) variables in
+      let variables' = List.map new_var variables in
       let env' = List.fold_left2
-        (fun env variable variable' -> M.add variable variable' env)
+        (fun env variable variable' -> M.add variable (Emit.Variable variable') env)
         env variables variables' in
       let inits' = List.map (analyze qq env') inits in
       Emit.Let variables' inits' (analyze_body qq env' body)
@@ -562,10 +573,10 @@ and analyze_let qq env cdr =
             | _ -> failwith "bad syntax in (let)" ]
         | _ -> failwith "bad syntax in (let)" ]
       in let (variables, inits) = List.split (loop bindings)
-      in let variables' = List.map (fun variable ->
-        Emit.Variable (ref False) (mangle variable)) variables
+      in let variables' = List.map new_var variables
       in let env' = List.fold_left2
-        (fun env variable variable' -> M.add variable variable' env) env variables variables'
+        (fun env variable variable' -> M.add variable (Emit.Variable variable') env)
+          env variables variables'
       in Emit.Let variables' inits (analyze_body qq env' body)
   | _ -> failwith "bad syntax in (let)" ]
 
@@ -575,9 +586,9 @@ and analyze_set qq env cdr =
       {Scheme.car = Scheme.Symbol name; Scheme.cdr = Scheme.Cons
         {Scheme.car = exp; Scheme.cdr = Scheme.Nil}} ->
       try match M.find name env with
-      [ Emit.Variable mut name as v -> do {
-        mut.val := True;
-        Emit.Set v (analyze qq env exp)
+      [ Emit.Variable var -> do {
+        var.Emit.mut := True;
+        Emit.Set var (analyze qq env exp)
       }
       | Emit.Syntax _ -> failwith "cannot! a syntax"
       | Emit.Builtin _ _ _ -> failwith "cannot set! a builtin" ]
@@ -644,13 +655,13 @@ and analyze_lambda qq env cdr =
         | (Scheme.Symbol arg, Scheme.Symbol a) -> (True, [arg; a])
         | _ -> failwith "bad syntax in (lambda)" ]
           in let (varargs, args) = loop cons' in
-          let args' = List.map (fun arg -> Emit.Variable (ref False) (mangle arg)) args in
+          let args' = List.map new_var args in
           let env' = List.fold_left2
-            (fun start rest rest' -> M.add rest rest' start) env args args' in
+            (fun env arg arg' -> M.add arg (Emit.Variable arg') env) env args args' in
           Emit.Lambda varargs args' (analyze_body qq env' cons.Scheme.cdr)
     | Scheme.Symbol name ->
-        let arg' = Emit.Variable (ref False) (mangle name) in
-        let env' = M.add name arg' env in
+        let arg' = new_var name in
+        let env' = M.add name (Emit.Variable arg') env in
         Emit.Lambda True [arg'] (analyze_body qq env' cons.Scheme.cdr)
     | Scheme.Nil -> (* zero-arity *)
         Emit.Lambda False [] (analyze_body qq env cons.Scheme.cdr)
@@ -703,9 +714,10 @@ and analyze_cond qq env cdr =
         Scheme.car = test;
         Scheme.cdr = Scheme.Nil
       } ->
-        let v = Emit.Variable (ref False) "test" in
+        let v = new_var_no_mangle "test" False in
+        let v' = Emit.Variable v in
         Emit.Let [v] [analyze qq env test]
-          (Emit.If (Emit.Reference v) (Emit.Reference v)
+          (Emit.If (Emit.Reference v') (Emit.Reference v')
             (loop clauses))
     | Scheme.Cons {
         Scheme.car = test;
@@ -717,10 +729,11 @@ and analyze_cond qq env cdr =
           }
         }
       } ->
-        let v = Emit.Variable (ref False) "test" in
+        let v = new_var_no_mangle "test" False in
+        let v' = Emit.Variable v in
         Emit.Let [v] [analyze qq env test]
-          (Emit.If (Emit.Reference v)
-            (Emit.Application (analyze qq env expression) [Emit.Reference v])
+          (Emit.If (Emit.Reference v')
+            (Emit.Application (analyze qq env expression) [Emit.Reference v'])
             (loop clauses))
     | Scheme.Cons {
         Scheme.car = test;
@@ -745,10 +758,11 @@ and analyze_and qq env cdr =
         Scheme.car = test;
         Scheme.cdr = tests
       } ->
-        let v = Emit.Variable (ref False) "test" in
+        let v = new_var_no_mangle "test" False in
+        let v' = Emit.Variable v in
         Emit.Let [v] [analyze qq env test]
-          (Emit.If (Emit.Reference v) (loop tests)
-            (Emit.Reference v))
+          (Emit.If (Emit.Reference v') (loop tests)
+            (Emit.Reference v'))
     | _ -> failwith "bad syntax in (and)" ]
   in loop cdr
 
@@ -765,9 +779,10 @@ and analyze_or qq env cdr =
         Scheme.car = test;
         Scheme.cdr = tests
       } ->
-        let v = Emit.Variable (ref False) "test" in
+        let v = new_var_no_mangle "test" False in
+        let v' = Emit.Variable v in
         Emit.Let [v] [analyze qq env test]
-          (Emit.If (Emit.Reference v) (Emit.Reference v)
+          (Emit.If (Emit.Reference v') (Emit.Reference v')
             (loop tests))
     | _ -> failwith "bad syntax in (or)" ]
   in loop cdr
@@ -825,8 +840,8 @@ and analyze_quasiquote_aux qq env cdr =
   | _ -> Emit.Quote cdr ]
 
 and analyze_quasiquote_list qq env car =
-  let append = Emit.Reference (Emit.Builtin (Some (0, "Scheme.append")) []
-  "append") in
+  let append = Emit.Reference
+    (Emit.Builtin (Some (0, "Scheme.append")) [(2,"Scheme.append2")] "append") in
   let list = Emit.Reference (Emit.Builtin (Some (0, "Scheme.list")) [] "list") in
   let cons = Emit.Reference (Emit.Builtin None [(2, "Scheme.cons")] "cons") in
   match car with
@@ -967,11 +982,9 @@ and analyze_do qq env cdr =
       in
       let head = map_to_list parse_var variables in
       let vars = List.map (fun (var, _, _) -> var) head in
-      let vars' = List.map (fun var ->
-        Emit.Variable (ref False) (mangle var)) vars
-      in
+      let vars' = List.map new_var vars in
       let env' = List.fold_left2 (fun env var var' ->
-        M.add var var' env) env vars vars'
+        M.add var (Emit.Variable var') env) env vars vars'
       in
       let inits = List.map (fun (_, init, _) ->
         analyze qq env init) head
@@ -987,14 +1000,15 @@ and analyze_do qq env cdr =
         } ->
           let test = analyze qq env' test in
           let iftrue = map_to_list (analyze qq env') iftrue in
-          let loop = Emit.Variable (ref False) "loop" in
+          let loop = new_var_no_mangle "loop" True in
+          let loop' = Emit.Variable loop in
           Emit.Let [loop]
             [Emit.Lambda False vars'
               (Emit.If test (Emit.Begin iftrue)
                 (Emit.Begin
                   [Emit.Begin body;
-                    Emit.Application (Emit.Reference loop)
+                    Emit.Application (Emit.Reference loop')
                       steps]))]
-           (Emit.Application (Emit.Reference loop) inits)
+           (Emit.Application (Emit.Reference loop') inits)
       | _ -> failwith "bad syntax in (do)" ]
   | _ -> failwith "bad syntax in (do)" ];
