@@ -729,6 +729,11 @@ value integer_to_char n =
   [ Num n when Num.is_integer_num n -> Char (char_of_int (Num.int_of_num n))
   | _ -> failwith "integer->char: not an integer" ];
 
+value is_string string =
+  match string with
+  [ String _ -> t
+  | _ -> f ];
+
 value string_length string =
   match string with
   [ String string -> Num (Num.num_of_int (String.length string))

@@ -83,6 +83,7 @@ value builtins = [
   ("char-lower-case?", None, [(1, "Scheme.is_char_lower_case")]);
   ("char->integer", None, [(1, "Scheme.char_to_integer")]);
   ("integer->char", None, [(1, "Scheme.integer_to_char")]);
+  ("string?", None, [(1, "Scheme.is_string")]);
   ("string-length", None, [(1, "Scheme.string_length")]);
   ("string-ref", None, [(1, "Scheme.string_ref")]);
   ("string-set!", None, [(3, "Scheme.string_set")]);
