@@ -268,7 +268,7 @@ value rec analyze_program x =
 
 and analyze qq env x =
   match x with
-  [ Scheme.Num _
+  [ Scheme.Int _
   | Scheme.Boolean _
   | Scheme.Nil
   | Scheme.Char _

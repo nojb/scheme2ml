@@ -6,7 +6,7 @@ type in_port = {
 type out_port = out_channel;
 
 type t =
-  [ Num of Num.num
+  [ Int of int
   | Symbol of string
   | Boolean of bool
   | Char of char
@@ -32,8 +32,6 @@ and cons = {
 
 value t = Boolean True;
 value f = Boolean False;
-value num_zero = Num.num_of_int 0;
-value num_one = Num.num_of_int 1;
 
 module W = Weak.Make (
   struct
@@ -65,30 +63,22 @@ value is_procedure obj =
 value is_eq a b =
   if a == b then t else f;
 
-value is_eqv a b = (* this is the same as a = b ? *)
+  (* my implementation of eqv? compares strings char by char *)
+value is_eqv a b =
+  if a == b then t
+  else
   match (a, b) with
-  [ (Symbol a, Symbol b) -> if String.compare a b = 0 then t else f
-  | (Boolean a, Boolean b) -> if a = b then t else f
-  | (Char a, Char b) -> if a = b then t else f
-  | (Nil, Nil) -> t
-  | (Void, Void) -> t
-  | (Cons a, Cons b) -> if a == b then t else f
+  [ (Char a, Char b) -> if a = b then t else f
   | (Vector a, Vector b) -> if a == b then t else f
-  | (String a, String b) -> if a == b then t else f
-  | (Lambda a, Lambda b) -> if a == b then t else f
-  | (Num a, Num b) -> if Num.eq_num a b then t else f
-  | (In a, In b) -> if a == b then t else f
-  | (Out a, Out b) -> if a == b then t else f
+  | (String a, String b) -> if a = b then t else f
+  | (Int a, Int b) -> if a = b then t else f
   | _ -> f ];
 
 value is_equal a b =
+  if a == b then t else
   let rec is_equal_aux a b =
   match (a, b) with
-  [ (Symbol a, Symbol b) -> String.compare a b = 0
-  | (Boolean a, Boolean b) -> a = b
-  | (Char a, Char b) -> a = b
-  | (Nil, Nil) -> True
-  | (Void, Void) -> True
+  [ (Char a, Char b) -> a = b
   | (Cons a, Cons b) ->
       is_equal_aux a.car b.car && is_equal_aux a.cdr b.cdr
   | (Vector a, Vector b) ->
@@ -100,11 +90,8 @@ value is_equal a b =
         else if is_equal_aux a.(i) b.(i) then loop (i+1)
         else False
       in loop 0
-  | (String a, String b) -> String.compare a b = 0
-  | (Lambda a, Lambda b) -> a == b
-  | (Num a, Num b) -> Num.eq_num a b
-  | (In a, In b) -> a == b
-  | (Out a, Out b) -> a == b
+  | (String a, String b) -> a = b
+  | (Int a, Int b) -> a = b
   | _ -> False ]
   in if is_equal_aux a b then t else f;
 
@@ -124,63 +111,63 @@ value rec fold_left f start cons =
 
 value add2 obj1 obj2 =
   match obj1 with
-  [ Num n ->
+  [ Int n ->
     match obj2 with
-    [ Num m -> Num (Num.add_num n m)
+    [ Int m -> Int (n + m)
     | _ -> failwith "+: bad arguments" ]
   | _ -> failwith "+: bad arguments" ];
 
 value add args =
-  Num (fold_left (fun start next ->
+  Int (fold_left (fun start next ->
     match next with
-    [ Num n -> Num.add_num start n
-    | _ -> failwith "+: bad arguments" ]) num_zero args);
+    [ Int n -> start + n
+    | _ -> failwith "+: bad arguments" ]) 0 args);
 
 value mul2 obj1 obj2 =
   match obj1 with
-  [ Num n ->
+  [ Int n ->
     match obj2 with
-    [ Num m -> Num (Num.mult_num n m)
+    [ Int m -> Int (n * m)
     | _ -> failwith "*: bad arguments" ]
   | _ -> failwith "*: bad arguments" ];
 
 value mul args =
-  Num (fold_left (fun start next ->
+  Int (fold_left (fun start next ->
     match next with
-    [ Num n -> Num.mult_num start n
-    | _ -> failwith "*: bad arguments" ]) num_one args);
+    [ Int n -> start * n
+    | _ -> failwith "*: bad arguments" ]) 1 args);
 
 value sub2 obj1 obj2 =
   match obj1 with
-  [ Num n ->
+  [ Int n ->
     match obj2 with
-    [ Num m -> Num (Num.sub_num n m)
+    [ Int m -> Int (n - m)
     | _ -> failwith "-: bad arguments" ]
   | _ -> failwith "-: bad arguments" ];
 
 value sub args =
   match args with
-  [ Cons {car = Num n; cdr = Nil} -> Num (Num.sub_num num_zero n)
-  | Cons {car = Num n; cdr = rest} ->
-    Num (fold_left (fun start next ->
+  [ Cons {car = Int n; cdr = Nil} -> Int (- n)
+  | Cons {car = Int n; cdr = rest} ->
+    Int (fold_left (fun start next ->
       match next with
-      [ Num n -> Num.sub_num start n
+      [ Int n -> start - n
       | _ -> failwith "-: bad arguments" ]) n rest)
-  | Nil -> Num num_zero
+  | Nil -> Int 0
   | _ -> failwith "-: bad arguments" ];
 
 value remainder n1 n2 =
   match (n1, n2) with
-  [ (Num n1, Num n2) -> Num (Num.mod_num n1 n2)
+  [ (Int n1, Int n2) -> Int (n1 mod n2)
   | _ -> failwith "remainder: not a pair of ints" ];
 
 value cmp_nums name cmp z1 z2 rest =
   match (z1, z2) with
-  [ (Num z1, Num z2) ->
+  [ (Int z1, Int z2) ->
     let rec loop last rest =
       match rest with
       [ Nil -> t
-      | Cons { car = Num a; cdr = rest } ->
+      | Cons { car = Int a; cdr = rest } ->
           if cmp last a then loop a rest
           else f
       | _ -> failwith (name ^ ": not numbers") ]
@@ -188,22 +175,22 @@ value cmp_nums name cmp z1 z2 rest =
   | _ -> failwith (name ^ ": not numbers") ];
 
 value lt z1 z2 rest =
-  cmp_nums "<" Num.lt_num z1 z2 rest;
+  cmp_nums "<" (fun a b -> a < b) z1 z2 rest;
 
 value gt z1 z2 rest =
-  cmp_nums ">" Num.gt_num z1 z2 rest;
+  cmp_nums ">" (fun a b -> a > b) z1 z2 rest;
 
 value le z1 z2 rest =
-  cmp_nums "<=" Num.le_num z1 z2 rest;
+  cmp_nums "<=" (fun a b -> a <= b) z1 z2 rest;
 
 value ge z1 z2 rest =
-  cmp_nums ">=" Num.ge_num z1 z2 rest;
+  cmp_nums ">=" (fun a b -> a >= b) z1 z2 rest;
 
 value eq z1 z2 rest =
-  cmp_nums "=" Num.eq_num z1 z2 rest;
+  cmp_nums "=" (fun a b -> a == b) z1 z2 rest;
 
 value rec to_string = fun
-  [ Num n -> Num.string_of_num n
+  [ Int n -> string_of_int n
   | Symbol s -> s
   | Boolean True -> "#t"
   | Boolean False -> "#f"
@@ -323,17 +310,17 @@ value is_true x =
 
 value is_zero number =
   match number with
-  [ Num n -> if Num.eq_num n num_zero then t else f
+  [ Int n -> if n = 0 then t else f
   | _ -> failwith "zero?: wrong argument type" ];
 
 value is_integer obj =
   match obj with
-  [ Num n -> if Num.is_integer_num n then t else f
+  [ Int n -> t
   | _ -> f ];
 
 value is_number obj =
   match obj with
-  [ Num n -> t
+  [ Int n -> t
   | _ -> f ];
 
 value car = fun
@@ -353,7 +340,7 @@ value cddr = fun
   | _ -> failwith "cddr: bad args" ];
 
 value cdar = fun
-  [ Cons{car=_;cdr=Cons{car=a;cdr=_}}->a
+  [ Cons{car=Cons{car=_;cdr=a};cdr=_} -> a
   | _ -> failwith "cdar: bad args" ];
 
 value caar = fun
@@ -385,7 +372,7 @@ value cadddr = fun
   | _ -> failwith "cadddr: bad args" ];
 
 value number_to_string = fun
-  [ Num n -> String (Num.string_of_num n)
+  [ Int n -> String (string_of_int n)
   | _ -> failwith "number->string: not a number" ];
 
 value is_boolean = fun
@@ -495,7 +482,7 @@ value length list =
     [ Nil -> i
     | Cons cons -> loop (i+1) cons.cdr
     | _ -> failwith "length: not a list" ]
-  in Num (Num.num_of_int (loop 0 list));
+  in Int (loop 0 list);
 
 value rec append lists =
   match lists with
@@ -526,37 +513,28 @@ value reverse list =
     | _ -> failwith "reverse: not a list" ]
   in loop list Nil;
 
-value to_int string k =
-  match k with
-  [ Num n ->
-    if Num.is_integer_num n then
-      let i = Num.big_int_of_num n in
-      if Big_int.is_int_big_int i then
-        Big_int.int_of_big_int i
-      else
-        failwith (string ^ ": not an int")
-    else
-      failwith (string ^ ": not an int")
-  | _ -> failwith (string ^ ": not an int") ];
-
 value list_tail list k =
-  let k = to_int "list-tail" k in
-  let rec loop list k =
-    if k = 0 then list
-    else match list with
-    [ Cons cons -> loop cons.cdr (k-1)
-    | Nil -> failwith "list-tail: list too short"
-    | _ -> failwith "list-tail: not a list" ]
-  in loop list k;
+  match k with
+  [ Int k ->
+    let rec loop list k =
+      if k = 0 then list
+      else match list with
+      [ Cons cons -> loop cons.cdr (k-1)
+      | Nil -> failwith "list-tail: list too short"
+      | _ -> failwith "list-tail: not a list" ]
+    in loop list k
+  | _ -> failwith "list-tail: not an int" ];
 
 value list_ref list k =
-  let k = to_int "list-ref" k in
-  let rec loop list k =
-    match list with
-    [ Cons cons -> if k = 0 then cons.car else loop cons.cdr (k-1)
-    | Nil -> failwith "list-ref: list too short"
-    | _ -> failwith "list-ref: not a list" ]
-  in loop list k;
+  match k with
+  [ Int k ->
+    let rec loop list k =
+      match list with
+      [ Cons cons -> if k = 0 then cons.car else loop cons.cdr (k-1)
+      | Nil -> failwith "list-ref: list too short"
+      | _ -> failwith "list-ref: not a list" ]
+    in loop list k
+  | _ -> failwith "list-ref: not an int" ];
 
 value rec mem name cmp obj list =
   match list with
@@ -627,24 +605,19 @@ value vector objs =
 
 value make_vector size =
   match size with
-  [ Num n -> 
-    if Num.is_integer_num n then
-      Vector (Array.make (Num.int_of_num n) Void)
-    else
-      failwith "make-vector: not an integer"
+  [ Int n -> Vector (Array.make n Void)
   | _ -> failwith "make-vector: not an integer" ];
 
 value vector_length vector =
   match vector with
-  [ Vector vector -> Num (Num.num_of_int (Array.length vector))
+  [ Vector vector -> Int (Array.length vector)
   | _ -> failwith "vector-length: not a vector" ];
 
 value vector_ref vector k =
   match vector with
   [ Vector vector ->
     match k with
-    [ Num n -> if Num.is_integer_num n then vector.(Num.int_of_num n) else
-      failwith "vector-ref: bad index"
+    [ Int n -> vector.(n)
     | _ -> failwith "vector-ref: bad index" ]
   | _ -> failwith "vector-ref: not a vector" ];
 
@@ -652,10 +625,10 @@ value vector_set vector k obj =
   match vector with
   [ Vector vector ->
     match k with
-    [ Num n -> if Num.is_integer_num n then do {
-        vector.(Num.int_of_num n) := obj;
+    [ Int n -> do {
+        vector.(n) := obj;
         Void
-      } else failwith "vector-set!: not an integer"
+      }
     | _ -> failwith "vector-set!: bad index" ]
   | _ -> failwith "vector-set!: not a vector" ];
 
@@ -663,10 +636,10 @@ value vector_to_list vector =
   match vector with
   [ Vector vector ->
     let l = Array.length vector in
-    let rec loop i =
-      if i >= l then Nil
-      else Cons { car = vector.(i); cdr = loop (i+1) }
-    in loop 0
+    let rec loop i cdr =
+      if i < 0 then cdr
+      else loop (i-1) (Cons { car = vector.(i); cdr = cdr })
+    in loop (l-1) Nil
   | _ -> failwith "vector->list: not a vector" ];
 
 value list_to_vector list =
@@ -729,12 +702,12 @@ value is_char_lower_case letter =
 
 value char_to_integer char =
   match char with
-  [ Char char -> Num (Num.num_of_int (int_of_char char))
+  [ Char char -> Int (int_of_char char)
   | _ -> failwith "char->integer: not a char" ];
 
 value integer_to_char n =
   match n with
-  [ Num n when Num.is_integer_num n -> Char (char_of_int (Num.int_of_num n))
+  [ Int n -> Char (char_of_int n)
   | _ -> failwith "integer->char: not an integer" ];
 
 value is_string string =
@@ -744,15 +717,14 @@ value is_string string =
 
 value string_length string =
   match string with
-  [ String string -> Num (Num.num_of_int (String.length string))
+  [ String string -> Int (String.length string)
   | _ -> failwith "string-length: not a string" ];
 
 value string_ref string k =
   match string with
   [ String s ->
     match k with
-    [ Num n when Num.is_integer_num n ->
-      Char (s.[Num.int_of_num n])
+    [ Int n -> Char (s.[n])
     | _ -> failwith "string-ref: not an integer" ]
   | _ -> failwith "string-ref: not a string" ];
 
@@ -760,10 +732,10 @@ value string_set string k char =
   match string with
   [ String s ->
     match k with
-    [ Num n when Num.is_integer_num n ->
+    [ Int n ->
       match char with
       [ Char c -> do {
-          s.[Num.int_of_num n] := c;
+          s.[n] := c;
           Void
         }
       | _ -> failwith "string-set!: not a char" ]
@@ -774,12 +746,9 @@ value substring string start finish =
   match string with
   [ String string ->
     match start with
-    [ Num n when Num.is_integer_num n ->
-      let n = Num.int_of_num n in
+    [ Int n ->
       match finish with
-      [ Num m when Num.is_integer_num m ->
-        let m = Num.int_of_num m in
-        String (String.sub string n (m-n+1))
+      [ Int m -> String (String.sub string n (m-n+1))
       | _ -> failwith "substring: end is not an integer" ]
     | _ -> failwith "substring: start is not an integer" ]
   | _ -> failwith "substring: string is not a string" ];

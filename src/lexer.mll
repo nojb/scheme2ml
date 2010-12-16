@@ -10,7 +10,7 @@ let identifier = (initial (initial | ['0'-'9'] | ['+''-''.''@'])*) | '+' | '-' |
 rule token = parse
   '-'?['0'-'9']+ as int
   {
-    INT (Num.num_of_string int)
+    INT (int_of_string int)
   }
   | ';' [^'\n''\r']*['\n''\r']
   {

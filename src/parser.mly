@@ -4,7 +4,7 @@
 %token LP RP EOF DOT QUOTE
 %token TRUE FALSE SHARP_LP
 %token QUASIQUOTE UNQUOTE UNQUOTE_SPLICING
-%token <Num.num> INT
+%token <int> INT
 %token <string> NAME
 %token <char> CHAR
 %token <string> STRING
@@ -46,7 +46,7 @@ ast:
   }
   | INT
   {
-    Scheme.Num $1
+    Scheme.Int $1
   }
   | QUOTE ast
   {

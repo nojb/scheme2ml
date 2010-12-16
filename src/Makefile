@@ -6,7 +6,7 @@ INCLUDES =
 OCAMLOPT = ocamlopt $(INCLUDES)
 OCAMLYACC = menhir
 OCAMLLEX = ocamllex
-LIBS = nums.cmxa
+LIBS = #nums.cmxa
 YFLAGS =
 
 simple:

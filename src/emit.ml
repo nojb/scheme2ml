@@ -91,12 +91,8 @@ value rec emit x =
   | Time e -> emit_time e ]
 
 and emit_quote = fun
-  [ Scheme.Num n ->
-    if Num.eq_num n (Num.num_of_int (Num.int_of_num n)) then
-      Printf.printf "(Scheme.Num (Num.num_of_int (%d)))" (Num.int_of_num n)
-    else
-      Printf.printf "(Scheme.Num (Num.num_of_string \"%s\"))"
-        (Num.string_of_num n)
+  [ Scheme.Int n ->
+      Printf.printf "(Scheme.Int %d)" n
   | Scheme.Char char ->
       Printf.printf "(Scheme.Char '%c')" char
   | Scheme.String string ->
@@ -338,7 +334,10 @@ and emit_application f args =
               } ]
           else ()
         in loop args 0
-      } else Printf.printf "()";
+      } else if var.varargs then
+        Printf.printf "Scheme.Nil"
+      else
+        Printf.printf "()";
       Printf.printf ")"
     }
   | _ ->
