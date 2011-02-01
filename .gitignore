@@ -1,10 +1,4 @@
-*.cmx
-*.cmo
-*.cmi
-*.o
-src/s2ml
-src/s2ml.opt
-tests/*
-src/lexer.ml
-src/parser.ml
-src/parser.mli
+_build
+*.native
+*.byte
+old

@@ -2,12 +2,9 @@ OBJS = scheme.cmx parser.cmx lexer.cmx emit.cmx \
 					builtins.cmx ast.cmx s2ml.cmx
 CAMLP = camlp5r
 PP = -pp $(CAMLP)
-INCLUDES =
-OCAMLOPT = ocamlopt $(INCLUDES)
+OCAMLOPT = ocamlopt
 OCAMLYACC = menhir
 OCAMLLEX = ocamllex
-LIBS = #nums.cmxa
-YFLAGS =
 
 simple:
 	$(OCAMLYACC) parser.mly
