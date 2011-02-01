@@ -1,4 +1,3 @@
-camlp5r pr_o.cmo pr_op.cmo scheme_io.ml
 open Scheme
 
 let read_from_port port =
