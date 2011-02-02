@@ -1,5 +1,5 @@
 type t = (* scheme intermediate code *)
-    Quote of Scheme.t
+  | Quote of Scheme.t
   | Do of list (var * t * t) and (t * t) and t
   | Begin of list t
   | Cond of list (t * t) and t

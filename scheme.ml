@@ -25,7 +25,10 @@ type t =
   | Out of out_port
   | Snil
 
-and cons = { mutable car : t; mutable cdr : t }
+and cons = {
+  mutable car : t;
+  mutable cdr : t
+}
 
 module W =
   Weak.Make
@@ -409,9 +412,6 @@ let is_boolean =
   | Strue | Sfalse -> Strue
   | _ -> Sfalse
 
-let _not obj =
-  if obj == Strue then Sfalse else Strue
-
 let is_pair =
   function
   | Scons _ -> Strue
@@ -477,7 +477,8 @@ let rec is_list =
   | Snil -> Strue
   | _ -> Sfalse
 
-let list args = args
+let list args =
+  args
 
 let length list =
   let rec loop i list =
@@ -568,6 +569,8 @@ let assq = ass "assq" is_eq
 let assv = ass "assv" is_eqv
 
 let assoc = ass "assoc" is_equal
+let _not obj =
+  if obj == Strue then Sfalse else Strue
 
 let is_symbol =
   function
