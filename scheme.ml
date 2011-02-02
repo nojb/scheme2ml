@@ -5,7 +5,7 @@ type out_port = out_channel
 open Num
 
 type t =
-    Snum of num
+  | Snum of num
   | Symbol of string
   | Strue
   | Sfalse
@@ -110,9 +110,9 @@ let rec fold_left f start cons =
 
 let add2 obj1 obj2 =
   match obj1 with
-    Int n ->
+  | Snum n ->
       begin match obj2 with
-        Int m -> Int (n + m)
+      | Snum m -> Snum (n +/ m)
       | _ -> failwith "+: bad arguments"
       end
   | _ -> failwith "+: bad arguments"
@@ -337,64 +337,52 @@ let is_number obj =
   | Snum _ -> Strue
   | _ -> Sfalse
 
-let car =
-  function
+let car = function
   | Scons cons -> cons.car
   | _ -> failwith "car: not a pair"
 
-let cdr =
-  function
+let cdr = function
   | Scons cons -> cons.cdr
   | _ -> failwith "cdr: not a pair"
 
-let cadr =
-  function
-    Scons {car = _; cdr = Scons {car = a; cdr = _}} -> a
+let cadr = function
+  | Scons {car = _; cdr = Scons {car = a; cdr = _}} -> a
   | _ -> failwith "cadr: bad args"
 
-let cddr =
-  function
-    Scons {car = _; cdr = Scons {car = _; cdr = a}} -> a
+let cddr = function
+  | Scons {car = _; cdr = Scons {car = _; cdr = a}} -> a
   | _ -> failwith "cddr: bad args"
 
-let cdar =
-  function
-    Scons {car = Scons {car = _; cdr = a}; cdr = _} -> a
+let cdar = function
+  | Scons {car = Scons {car = _; cdr = a}; cdr = _} -> a
   | _ -> failwith "cdar: bad args"
 
-let caar =
-  function
-    Scons {car = Scons {car = a; cdr = _}; cdr = _} -> a
+let caar = function
+  | Scons {car = Scons {car = a; cdr = _}; cdr = _} -> a
   | _ -> failwith "caar: bad args"
 
-let caaar =
-  function
-    Scons {car = Scons {car = Scons {car = a; cdr = _}; cdr = _}; cdr = _} -> a
+let caaar = function
+  | Scons {car = Scons {car = Scons {car = a; cdr = _}; cdr = _}; cdr = _} -> a
   | _ -> failwith "caaar: bad args"
 
-let caddr =
-  function
-    Scons {car = _; cdr = Scons {car = _; cdr = Scons {car = a; cdr = _}}} -> a
+let caddr = function
+  | Scons {car = _; cdr = Scons {car = _; cdr = Scons {car = a; cdr = _}}} -> a
   | _ -> failwith "caddr: bad args"
 
-let caadr =
-  function
-    Scons {car = _; cdr = Scons {car = Scons {car = a; cdr = _}; cdr = _}} -> a
+let caadr = function
+  | Scons {car = _; cdr = Scons {car = Scons {car = a; cdr = _}; cdr = _}} -> a
   | _ -> failwith "caadr: bad args"
 
-let cdddr =
-  function
-    Scons {car = _; cdr = Scons {car = _; cdr = Scons {car = _; cdr = a}}} -> a
+let cdddr = function
+  | Scons {car = _; cdr = Scons {car = _; cdr = Scons {car = _; cdr = a}}} -> a
   | _ -> failwith "cdddr: bad args"
 
-let cdadr =
-  function
-    Scons {car = _; cdr = Scons {car = Scons {car = _; cdr = a}; cdr = _}} -> a
+let cdadr = function
+  | Scons {car = _; cdr = Scons {car = Scons {car = _; cdr = a}; cdr = _}} -> a
   | _ -> failwith "cdadr: bad args"
 
-let cadddr =
-  function
-    Scons
+let cadddr = function
+  | Scons
       {car = _;
        cdr =
          Scons
@@ -402,18 +390,15 @@ let cadddr =
       a
   | _ -> failwith "cadddr: bad args"
 
-let number_to_string =
-  function
-  |  Snum n -> String (string_of_num n)
+let number_to_string = function
+  | Snum n -> String (string_of_num n)
   | _ -> failwith "number->string: not a number"
 
-let is_boolean =
-  function
+let is_boolean = function
   | Strue | Sfalse -> Strue
   | _ -> Sfalse
 
-let is_pair =
-  function
+let is_pair = function
   | Scons _ -> Strue
   | _ -> Sfalse
 
@@ -430,8 +415,7 @@ value set_cdr_bang pair obj =
   [ Scons cons -> do { cons.cdr := obj; Void }
   | _ -> failwith "set-cdr!: not a pair" ];*)
 
-let is_null =
-  function
+let is_null = function
   | Snil -> Strue
   | _ -> Sfalse
 
@@ -471,8 +455,7 @@ let rec for_each f lists =
     Snil, Snil -> Void
   | heads, tails -> ignore (apply f heads); for_each f tails
 
-let rec is_list =
-  function
+let rec is_list = function
   | Scons cons -> is_list cons.cdr
   | Snil -> Strue
   | _ -> Sfalse
@@ -518,34 +501,30 @@ let reverse list =
   in
   loop list Snil
 
-let list_tail list k =
-  match k with
-    Int k ->
+let list_tail list = function
+  | Snum (Int k) ->
       let rec loop list k =
         if k = 0 then list
         else
           match list with
-            Scons cons -> loop cons.cdr (k - 1)
+          | Scons cons -> loop cons.cdr (k - 1)
           | Snil -> failwith "list-tail: list too short"
           | _ -> failwith "list-tail: not a list"
       in
       loop list k
   | _ -> failwith "list-tail: not an int"
 
-let list_ref list k =
-  match k with
-    Int k ->
-      let rec loop list k =
-        match list with
-          Scons cons -> if k = 0 then cons.car else loop cons.cdr (k - 1)
+let list_ref list = function
+  | Snum (Int k) ->
+      let rec loop k = function
+        | Scons cons -> if k = 0 then cons.car else loop (k-1) cons.cdr
         | Snil -> failwith "list-ref: list too short"
         | _ -> failwith "list-ref: not a list"
       in
-      loop list k
+      loop k list
   | _ -> failwith "list-ref: not an int"
 
-let rec mem name cmp obj list =
-  match list with
+(* let rec mem name cmp obj = function
   | Scons cons ->
       if (cmp obj cons.car) == Strue then list else mem name cmp obj cons.cdr
   | Snil -> Sfalse
@@ -555,7 +534,7 @@ let memq = mem "memq" is_eq
 
 let memv = mem "memv" is_eqv
 
-let member = mem "member" is_equal
+let member = mem "member" is_equal *)
 
 let rec ass name cmp obj alist =
   match alist with
@@ -572,24 +551,20 @@ let assoc = ass "assoc" is_equal
 let _not obj =
   if obj == Strue then Sfalse else Strue
 
-let is_symbol =
-  function
+let is_symbol = function
   | Symbol _ -> Strue
   | _ -> Sfalse
 
-let symbol_to_string symbol =
-  match symbol with
-    Symbol symbol -> String (String.copy symbol)
+let symbol_to_string = function
+  | Symbol symbol -> String (String.copy symbol)
   | _ -> failwith "symbol->string: not a symbol"
 
-let string_to_symbol string =
-  match string with
-    String string -> intern (String.copy string)
+let string_to_symbol = function
+  | String string -> intern (String.copy string)
   | _ -> failwith "string->symbol: not a string"
 
-let is_vector =
-  function
-    Vector _ -> Strue
+let is_vector = function
+  | Vector _ -> Strue
   | _ -> Sfalse
 
 let vector objs =
@@ -602,14 +577,12 @@ let vector objs =
   in
   Vector (loop 0 objs)
 
-let make_vector size =
-  match size with
-    Int n -> Vector (Array.make n Void)
+let make_vector = function
+  | Snum (Int n) -> Vector (Array.make n Void)
   | _ -> failwith "make-vector: not an integer"
 
-let vector_length vector =
-  match vector with
-    Vector vector -> Int (Array.length vector)
+let vector_length = function
+  | Vector vector -> Snum (Int (Array.length vector))
   | _ -> failwith "vector-length: not a vector"
 
 let vector_ref vector k =
@@ -630,9 +603,8 @@ let vector_set vector k obj =
       end
   | _ -> failwith "vector-set!: not a vector"
 
-let vector_to_list vector =
-  match vector with
-    Vector vector ->
+let vector_to_list = function
+  | Vector vector ->
       let l = Array.length vector in
       let rec loop i cdr =
         if i < 0 then cdr
@@ -644,7 +616,7 @@ let vector_to_list vector =
 let list_to_vector list =
   let rec loop l list =
     match list with
-      Snil -> Array.create l Snil
+    | Snil -> Array.create l Snil
     | Scons {car = a; cdr = b} -> let arr = loop (l + 1) b in arr.(l) <- a; arr
     | _ -> failwith "list->vector: not a list"
   in
@@ -652,11 +624,10 @@ let list_to_vector list =
 
 let vector_fill vector fill =
   match vector with
-    Vector vector -> Array.fill vector 0 (Array.length vector) fill; Void
+  | Vector vector -> Array.fill vector 0 (Array.length vector) fill; Void
   | _ -> failwith "vector-fill!: not a vector"
 
-let is_char obj =
-  match obj with
+let is_char = function
   | Char _ -> Strue
   | _ -> Sfalse
 
@@ -667,18 +638,15 @@ let is_char_eq char1 char2 =
   | _ ->
       failwith "char=?: bad arguments"
 
-let is_char_alphabetic char =
-  match char with
+let is_char_alphabetic = function
   | Char c -> if 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' then Strue else Sfalse
   | _ -> failwith "char-alphabetic?: not a char"
 
-let is_char_numeric char =
-  match char with
+let is_char_numeric = function
   | Char c -> if '0' <= c && c <= '9' then Strue else Sfalse
   | _ -> failwith "char-numeric?: not a char"
 
-let is_char_whitespace char =
-  match char with
+let is_char_whitespace = function
   | Char c -> if c = ' ' || c = '\t' || c = '\n' || c = '\r' then Strue else Sfalse
   | _ -> failwith "char-whitespace?: not a char"
 
