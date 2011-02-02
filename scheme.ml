@@ -319,7 +319,7 @@ let apply4 f a b c d =
   | _ -> failwith "apply: not a function"
 
 let is_true x =
-  x == Strue
+  not (x == Sfalse)
 
 let is_zero number =
   match number with

@@ -174,22 +174,22 @@ let rec analyze_program x =
   let x' = Dlist (Dsym "begin" :: loop x) in
   let syntax_forms =
     [ "begin", analyze_begin;
-      (* "lambda", analyze_lambda;
-      ("define", analyze_define);
-      "set!", analyze_set; *)
+      "lambda", analyze_lambda;
+      (* ("define", analyze_define); *)
+      "set!", analyze_set;
       "quote", analyze_quote;
-      (* "quasiquote", analyze_quasiquote;
+      (* "quasiquote", analyze_quasiquote;*)
       "if", analyze_alternative;
-      "let", analyze_let;
+      (*"let", analyze_let;
       "let*", analyze_let_star;
       "letrec", analyze_letrec;
-      "cond", analyze_cond;
+      "cond", analyze_cond;*)
       "and", analyze_and;
       "or", analyze_or;
-      "case", analyze_case;
+      (*"case", analyze_case;
       "delay", analyze_delay;
-      "do", analyze_do;
-      "time", analyze_time *) ]
+      "do", analyze_do; *)
+      "time", analyze_time ]
   in
   let env =
     List.fold_left
@@ -218,7 +218,7 @@ and analyze qq env x =
         | _ as v -> Emit.Reference v
       with Not_found -> failwith ("unknown identifier: " ^ s) end
   | Dlist (x :: xs) -> analyze_cons qq env x xs
-  | _ -> failwith "analyze: unhandled scheme datum"
+  | Ddot _ -> failwith "bad syntax"
 
 and analyze_cons qq env x xs =
   match x with
@@ -242,65 +242,38 @@ and analyze_quote qq env = function
   | a :: [] -> Emit.Quote a
   | _ -> failwith "bad syntax in (quote)"
 
-(* and analyze_body qq env cdr =
-  let rec loop cdr =
-    match cdr with
-      Scheme.Scons
-        {Scheme.car =
-           Scheme.Scons
-             {Scheme.car = Scheme.Symbol "define";
-              Scheme.cdr = Scheme.Scons {Scheme.car = a; Scheme.cdr = b}};
-         cdr = xs} ->
+and analyze_body qq env xs =
+  let rec loop = function
+    | Dlist (Dsym "define" :: a :: b) :: xs ->
         begin match a with
-          Scheme.Scons
-            {Scheme.car = Scheme.Symbol _ as name; Scheme.cdr = args} ->
-            let (x', xs') = loop xs in
-            Scheme.Scons
-              {Scheme.car =
-                Scheme.Scons
-                  {Scheme.car = name;
-                   Scheme.cdr =
-                     Scheme.Scons
-                       {Scheme.car =
-                         Scheme.Scons
-                           {Scheme.car = Scheme.Symbol "lambda";
-                            Scheme.cdr =
-                              Scheme.Scons
-                                {Scheme.car = args; Scheme.cdr = b}};
-                        Scheme.cdr = Scheme.Snil}};
-               Scheme.cdr = x'},
-            xs'
-        | Scheme.Symbol _ as name ->
-            let (x', xs') = loop xs in
-            Scheme.Scons
-              {Scheme.car = Scheme.Scons {Scheme.car = name; Scheme.cdr = b};
-               Scheme.cdr = x'},
-            xs'
+        | Dlist (Dsym _ as name :: args) ->
+            let x', xs' = loop xs in
+            (Dlist
+              (name :: Dlist
+                (Dsym "lambda" :: Dlist args :: b) :: [])) :: x', xs'
+        | Dsym _ as name ->
+            let x', xs' = loop xs in
+            Dlist (name :: b) :: x', xs'
         | _ -> failwith "bad syntax in (define)"
         end
-    | Scheme.Scons
-        {Scheme.car =
-           Scheme.Scons
-             {Scheme.car = Scheme.Symbol "begin"; Scheme.cdr = defs};
-         Scheme.cdr = xs} ->
+    | Dlist (Dsym "begin" :: defs) :: xs ->
         begin match loop defs with
-          x', Scheme.Snil ->
-            let (x'', xs'') = loop xs in
-            cons_append x' x'', xs''
-        | Scheme.Snil, xs' -> Scheme.Snil, cons_append xs' xs
+        | x', [] ->
+            let x'', xs'' = loop xs in
+            List.append x' x'', xs''
+        | [], xs' ->
+            [], List.append xs' xs
         | _ -> failwith "bad syntax in (begin)"
         end
-    | x -> Scheme.Snil, x
+    | _ as x -> [], x
   in
-  let (x, xs) = loop cdr in
+  let x, xs = loop xs in
   match x with
-  | Scheme.Snil -> Emit.Begin (map_to_list (analyze qq env) xs)
+  | [] -> Emit.Begin (List.map (analyze qq env) xs)
   | _ ->
-      analyze qq env
-        (Scheme.Scons
-           {Scheme.car = Scheme.Symbol "letrec";
-            Scheme.cdr = Scheme.Scons {Scheme.car = x; Scheme.cdr = xs}})
+      analyze qq env (Dlist (Dsym "letrec" :: Dlist x :: xs))
 
+        (*
 and analyze_let_star qq env cdr =
   match cdr with
     Scheme.Scons {Scheme.car = bindings; Scheme.cdr = body} ->
@@ -433,77 +406,62 @@ and analyze_let qq env cdr =
       in
       Emit.Let (variables', inits, analyze_body qq env' body)
   | _ -> failwith "bad syntax in (let)"
+*)
 
-and analyze_set qq env cdr =
-  match cdr with
-    Scheme.Scons
-      {Scheme.car = Scheme.Symbol name;
-       Scheme.cdr =
-         Scheme.Scons {Scheme.car = exp; Scheme.cdr = Scheme.Snil}} ->
+and analyze_set qq env = function
+  | Dsym name :: exp :: [] ->
       begin try
         match M.find name env with
-          Emit.Variable var ->
+        | Emit.Variable var ->
             var.Emit.mut <- true; Emit.Set (var, analyze qq env exp)
         | Emit.Syntax _ -> failwith "cannot! a syntax"
         | Emit.Builtin (_, _, _) -> failwith "cannot set! a builtin"
-      with Not_found -> failwith "cannot set! an undefined variable"
-      end
+      with Not_found -> failwith "cannot set! an undefined variable" end
   | _ -> failwith "bad syntax in set!"
 
-and analyze_lambda qq env cdr =
-  match cdr with
-    Scheme.Scons cons ->
-      begin match cons.Scheme.car with
-        Scheme.Scons cons' ->
-          (* have argument list *)
-          let rec loop cons' =
-            match cons'.Scheme.car, cons'.Scheme.cdr with
-              Scheme.Symbol arg, Scheme.Snil -> false, [arg]
-            | Scheme.Symbol arg, Scheme.Scons cons' ->
-                let (varargs, args) = loop cons' in varargs, arg :: args
-            | Scheme.Symbol arg, Scheme.Symbol a -> true, [arg; a]
-            | _ -> failwith "bad syntax in (lambda)"
-          in
-          let (varargs, args) = loop cons' in
-          let args' = List.map new_var args in
-          let env' =
-            List.fold_left2
-              (fun env arg arg' -> M.add arg (Emit.Variable arg') env) env
-              args args'
-          in
-          Emit.Lambda (varargs, args', analyze_body qq env' cons.Scheme.cdr)
-      | Scheme.Symbol name ->
-          let arg' = new_var name in
-          let env' = M.add name (Emit.Variable arg') env in
-          Emit.Lambda (true, [arg'], analyze_body qq env' cons.Scheme.cdr)
-      | Scheme.Snil ->
-          (* zero-arity *)
-          Emit.Lambda (false, [], analyze_body qq env cons.Scheme.cdr)
-      | _ -> failwith "bad syntax in (lambda)"
-      end
+and analyze_lambda qq env = function
+  | Dlist args :: body ->
+
+      let args = List.map
+        (function Dsym arg -> arg | _ -> failwith "bad syntax in (lambda)")
+        args in
+      let args' = List.map new_var args in
+      let env' =
+        List.fold_left2
+          (fun env arg arg' ->
+            M.add arg (Emit.Variable arg') env) env args args' in
+      Emit.Lambda (false, args', analyze_body qq env' body)
+
+  | Ddot (args, Dsym a) :: body ->
+      let args = List.map
+        (function Dsym arg -> arg | _ -> failwith "bad syntax in (lambda)") args in
+      let args = List.append args [a] in
+      let args' = List.map new_var args in
+      let env' =
+        List.fold_left2
+          (fun env arg arg' -> M.add arg (Emit.Variable arg') env)
+            env args args' in
+      Emit.Lambda (true, args', analyze_body qq env' body)
+
+  | Dsym name :: body ->
+      let arg' = new_var name in
+      let env' = M.add name (Emit.Variable arg') env in
+      Emit.Lambda (true, [arg'], analyze_body qq env' body)
+
   | _ -> failwith "bad syntax in (lambda)"
 
-and analyze_alternative qq env cdr =
-  match cdr with
-    Scheme.Scons
-      {Scheme.car = condition;
-       Scheme.cdr =
-         Scheme.Scons {Scheme.car = iftrue; Scheme.cdr = Scheme.Snil}} ->
+and analyze_alternative qq env = function
+  | condition :: iftrue :: [] ->
       Emit.If
         (analyze qq env condition, analyze qq env iftrue,
-         Emit.Quote Scheme.Void)
-  | Scheme.Scons
-      {Scheme.car = condition;
-       Scheme.cdr =
-         Scheme.Scons
-           {Scheme.car = iftrue;
-            Scheme.cdr =
-              Scheme.Scons {Scheme.car = iffalse; Scheme.cdr = Scheme.Snil}}} ->
+          Emit.Quote (Dlist [])) (* Should be Svoid? *)
+  | condition :: iftrue :: iffalse :: [] ->
       Emit.If
         (analyze qq env condition, analyze qq env iftrue,
          analyze qq env iffalse)
-  | _ -> failwith "Ast.analyze_alternative: bad syntax in (if)"
+  | _ -> failwith "analyze_alternative: bad syntax in (if)"
 
+  (*
 and analyze_cond qq env cdr =
   let rec loop clauses =
     match clauses with
@@ -550,38 +508,29 @@ and analyze_cond qq env cdr =
     | _ -> failwith "bad syntax in (cond)"
   in
   loop cdr
+  *)
 
-and analyze_and qq env cdr =
-  let rec loop cdr =
-    match cdr with
-      Scheme.Snil -> Emit.Quote Scheme.Strue
-    | Scheme.Scons {Scheme.car = test; Scheme.cdr = Scheme.Snil} ->
-        analyze qq env test
-    | Scheme.Scons {Scheme.car = test; Scheme.cdr = tests} ->
-        let v = new_var_no_mangle "test" false 0 in
-        let v' = Emit.Variable v in
-        Emit.Let
-          ([v], [analyze qq env test],
-           Emit.If (Emit.Reference v', loop tests, Emit.Reference v'))
-    | _ -> failwith "bad syntax in (and)"
-  in
-  loop cdr
+and analyze_and qq env = function
+  | [] -> Emit.Quote (Dbool true)
+  | [x] -> analyze qq env x
+  | x :: xs ->
+      let v = new_var_no_mangle "test" false 0 in
+      let v' = Emit.Variable v in
+      Emit.Let ([v], [analyze qq env x],
+        Emit.If (Emit.Reference v', analyze_and qq env xs,
+          Emit.Reference v'))
 
-and analyze_or qq env cdr =
-  let rec loop cdr =
-    match cdr with
-      Scheme.Snil -> Emit.Quote Scheme.Sfalse
-    | Scheme.Scons {Scheme.car = test; Scheme.cdr = Scheme.Snil} ->
-        analyze qq env test
-    | Scheme.Scons {Scheme.car = test; Scheme.cdr = tests} ->
-        let v = new_var_no_mangle "test" false 0 in
-        let v' = Emit.Variable v in
-        Emit.Let
-          ([v], [analyze qq env test],
-           Emit.If (Emit.Reference v', Emit.Reference v', loop tests))
-    | _ -> failwith "bad syntax in (or)"
-  in
-  loop cdr
+and analyze_or qq env = function
+  | [] -> Emit.Quote (Dbool false)
+  | [x] -> analyze qq env x
+  | x :: xs ->
+      let v = new_var_no_mangle "test" false 0 in
+      let v' = Emit.Variable v in
+      Emit.Let ([v], [analyze qq env x],
+        Emit.If (Emit.Reference v', Emit.Reference v',
+          analyze_or qq env xs))
+
+  (*
 and analyze_quasiquote qq env cdr =
   match cdr with
     Scheme.Scons {Scheme.car = x; Scheme.cdr = Scheme.Snil} ->
@@ -787,10 +736,9 @@ and analyze_do qq env cdr =
       | _ -> failwith "bad syntax in (do)"
       end
   | _ -> failwith "bad syntax in (do)"
+  *)
 
-and analyze_time qq env cdr =
-  match cdr with
-    Scheme.Scons {Scheme.car = e; Scheme.cdr = Scheme.Snil} ->
+and analyze_time qq env = function
+  | e :: [] ->
       Emit.Time (analyze qq env e)
   | _ -> failwith "bad syntax in (time)"
-  *)

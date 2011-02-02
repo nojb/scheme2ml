@@ -110,7 +110,7 @@ and emit_begin ppf ls =
   in fprintf ppf "(%a)" loop ls
 
 and emit_if ppf cond iftrue iffalse =
-  fprintf ppf "(if Scheme.Strue = %a then %a else %a)"
+  fprintf ppf "(if not (Scheme.Sfalse = %a) then %a else %a)"
     emit cond emit iftrue emit iffalse
 
 and emit_case ppf key clauses elseclause =
