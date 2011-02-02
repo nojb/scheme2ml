@@ -156,7 +156,7 @@ and emit_reference binding =
       let rec loop count =
         if count > fixed then "rest " ^ String.make (count - 1) '}'
         else
-          "Scheme.Cons { Scheme.car = arg" ^ string_of_int count ^
+          "Scheme.Scons { Scheme.car = arg" ^ string_of_int count ^
           "; Scheme.cdr = " ^ loop (count + 1)
       in
       Printf.printf "%s -> %s" (loop 1) varargs;
@@ -169,9 +169,9 @@ and emit_reference binding =
       Printf.printf "(Scheme.Lambda (fun args -> match args with [";
       let rec help (arity, name) =
         let rec loop count =
-          if count > arity then "Scheme.Nil" ^ String.make (count - 1) '}'
+          if count > arity then "Scheme.Snil" ^ String.make (count - 1) '}'
           else
-            "Scheme.Cons { Scheme.car = arg" ^ string_of_int count ^
+            "Scheme.Scons { Scheme.car = arg" ^ string_of_int count ^
             "; Scheme.cdr = " ^ loop (count + 1)
         in
         Printf.printf "%s -> %s" (loop 1) name;
@@ -201,9 +201,9 @@ and emit_application f args =
           if count > fixed then
             let rec loop2 args =
               match args with
-                [] -> Printf.printf "Scheme.Nil"
+                [] -> Printf.printf "Scheme.Snil"
               | a :: b ->
-                  Printf.printf "Scheme.Cons { Scheme.car = ";
+                  Printf.printf "Scheme.Scons { Scheme.car = ";
                   emit a;
                   Printf.printf "; Scheme.cdr = ";
                   loop2 b;
@@ -235,9 +235,9 @@ and emit_application f args =
           if i >= var.arity - 1 && var.varargs then
             let rec loop2 args =
               match args with
-                [] -> Printf.printf " Scheme.Nil "
+                [] -> Printf.printf " Scheme.Snil "
               | a :: b ->
-                  Printf.printf " (Scheme.Cons { Scheme.car = ";
+                  Printf.printf " (Scheme.Scons { Scheme.car = ";
                   emit a;
                   Printf.printf " ; Scheme.cdr = ";
                   loop2 b;
@@ -250,7 +250,7 @@ and emit_application f args =
             | a :: b -> emit a; Printf.printf " "; loop b (i + 1)
         in
         loop args 0
-      else if var.varargs then Printf.printf "Scheme.Nil"
+      else if var.varargs then Printf.printf "Scheme.Snil"
       else Printf.printf "()";
       Printf.printf ")"
   | _ ->
@@ -269,9 +269,9 @@ and emit_application f args =
           Printf.printf "(";
           let rec loop args =
             match args with
-              [] -> Printf.printf "Scheme.Nil"
+              [] -> Printf.printf "Scheme.Snil"
             | a :: b ->
-                Printf.printf "Scheme.Cons { Scheme.car = ";
+                Printf.printf "Scheme.Scons { Scheme.car = ";
                 emit a;
                 Printf.printf "; Scheme.cdr = ";
                 loop b;
@@ -368,14 +368,14 @@ and emit_lambda_body varargs args f =
   Printf.printf "match args with [";
   let rec loop acc args =
     match args with
-      [] -> "Scheme.Nil " ^ String.make acc '}'
+      [] -> "Scheme.Snil " ^ String.make acc '}'
     | [a] ->
         if varargs then a.name ^ String.make acc '}'
         else
-          "Scheme.Cons { Scheme.car = " ^ a.name ^
-          "; Scheme.cdr = Scheme.Nil " ^ String.make (acc + 1) '}'
+          "Scheme.Scons { Scheme.car = " ^ a.name ^
+          "; Scheme.cdr = Scheme.Snil " ^ String.make (acc + 1) '}'
     | a :: b ->
-        "Scheme.Cons {Scheme.car = " ^ a.name ^ "; Scheme.cdr = " ^
+        "Scheme.Scons {Scheme.car = " ^ a.name ^ "; Scheme.cdr = " ^
         loop (acc + 1) b
   in
   Printf.printf "%s -> " (loop 0 args);
@@ -388,14 +388,14 @@ and emit_lambda varargs args body =
       Printf.printf "match args with [";
       let rec loop acc args =
         match args with
-          [] -> "Scheme.Nil " ^ String.make acc '}'
+          [] -> "Scheme.Snil " ^ String.make acc '}'
         | [a] ->
             if varargs then a.name ^ String.make acc '}'
             else
-              "Scheme.Cons { Scheme.car = " ^ a.name ^
-              "; Scheme.cdr = Scheme.Nil " ^ String.make (acc + 1) '}'
+              "Scheme.Scons { Scheme.car = " ^ a.name ^
+              "; Scheme.cdr = Scheme.Snil " ^ String.make (acc + 1) '}'
         | a :: b ->
-            "Scheme.Cons {Scheme.car = " ^ a.name ^ "; Scheme.cdr = " ^
+            "Scheme.Scons {Scheme.car = " ^ a.name ^ "; Scheme.cdr = " ^
             loop (acc + 1) b
       in
       Printf.printf "%s -> " (loop 0 args);
