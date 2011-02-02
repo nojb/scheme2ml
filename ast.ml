@@ -81,10 +81,6 @@ let parse_define = function
       failwith "bad syntax in (define)"
   | _ -> None
 
-(* type d =
-    Def of (Scheme.t * Scheme.t) list
-  | Oth of Scheme.t *)
-
 type d =
   | Def of (datum * datum) list
   | Oth of datum
@@ -141,9 +137,9 @@ let rec analyze_program x =
       (*"cond", analyze_cond;*)
       "and", analyze_and;
       "or", analyze_or;
-      (*"case", analyze_case;
+      (*"case", analyze_case;*)
       "delay", analyze_delay;
-      "do", analyze_do; *)
+      (*"do", analyze_do; *)
       "time", analyze_time ]
   in
   let env =
@@ -158,8 +154,6 @@ let rec analyze_program x =
   in
   Printf.eprintf "DEBUG:\n%a\n%!" pp_datum x';
   analyze 0 env x'
-  (* Emit.Quote (Dlist []) *)
-  (* analyze 0 env x' *)
 
 and analyze qq env x =
   match x with
@@ -566,13 +560,13 @@ and analyze_case qq env cdr =
       fold_last_cons help help_last (Emit.Quote Scheme.Void) [] clauses
   | Scheme.Snil -> Emit.Quote Scheme.Void
   | _ -> failwith "bad syntax in (case)"
+  *)
 
-and analyze_delay qq env cdr =
-  match cdr with
-    Scheme.Scons {Scheme.car = e; Scheme.cdr = Scheme.Snil} ->
-      Emit.Delay (analyze qq env e)
+and analyze_delay qq env = function
+  | e :: [] -> Emit.Delay (analyze qq env e)
   | _ -> failwith "bad syntax in (delay)"
 
+  (*
 and analyze_do qq env cdr =
   match cdr with
     Scheme.Scons
