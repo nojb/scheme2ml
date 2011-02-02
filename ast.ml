@@ -132,7 +132,7 @@ let rec analyze_program x =
       (* "quasiquote", analyze_quasiquote;*)
       "if", analyze_alternative;
       "let", analyze_let;
-      (* "let*", analyze_let_star;*)
+      "let*", analyze_let_star;
       "letrec", analyze_letrec;
       (*"cond", analyze_cond;*)
       "and", analyze_and;
@@ -221,30 +221,13 @@ and analyze_body qq env xs =
   | _ ->
       analyze qq env (Dlist (Dsym "letrec" :: Dlist x :: xs))
 
-        (*
-and analyze_let_star qq env cdr =
-  match cdr with
-    Scheme.Scons {Scheme.car = bindings; Scheme.cdr = body} ->
-      let rec loop bindings =
-        match bindings with
-          Scheme.Snil ->
-            Scheme.Scons {Scheme.car = Scheme.Snil; Scheme.cdr = body}
-        | Scheme.Scons {Scheme.car = binding1; Scheme.cdr = bindings} ->
-            Scheme.Scons
-              {Scheme.car =
-                Scheme.Scons {Scheme.car = binding1; Scheme.cdr = Scheme.Snil};
-               Scheme.cdr =
-                 Scheme.Scons
-                   {Scheme.car =
-                     Scheme.Scons
-                       {Scheme.car = Scheme.Symbol "let";
-                        Scheme.cdr = loop bindings};
-                    Scheme.cdr = Scheme.Snil}}
-        | _ -> failwith "bad syntax in (let\*\)"
-      in
-      analyze_let qq env (loop bindings)
-  | _ -> failwith "bad syntax in (let\*\)"
-  *)
+and analyze_let_star qq env = function
+  | Dlist bindings :: body ->
+      analyze_let qq env (List.fold_right
+        (fun binding body ->
+          Dlist [binding] :: Dlist (Dsym "let" :: body) :: [] )
+        bindings (Dlist [] :: body))
+  | _ -> failwith "bad syntax in (let*)"
 
 and analyze_letrec qq env = function
   | Dlist bindings :: body ->
