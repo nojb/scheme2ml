@@ -162,26 +162,8 @@ let rec analyze_program x =
             (* bindings + body *)
             Dlist (n :: e :: []) :: rest)
           [] zs
-        (* List.fold_left
-          (fun rest (n, e) ->
-             (* bindings + body *)
-             Scheme.Scons
-               {Scheme.car =
-                 Scheme.Scons
-                   {Scheme.car = n;
-                    Scheme.cdr =
-                      Scheme.Scons {Scheme.car = e; Scheme.cdr = Scheme.Snil}};
-                Scheme.cdr = rest})
-          Scheme.Snil zs*)
       in
       [Dlist (Dsym "letrec" :: Dlist bindings :: rest)]
-      (* Scheme.Scons
-        {Scheme.car =
-          Scheme.Scons
-            {Scheme.car = Scheme.Symbol "letrec";
-             Scheme.cdr =
-               Scheme.Scons {Scheme.car = bindings; Scheme.cdr = rest}};
-         Scheme.cdr = Scheme.Snil} *)
     in
     List.fold_left
       (fun rest def ->
@@ -191,14 +173,23 @@ let rec analyze_program x =
   in
   let x' = Dlist (Dsym "begin" :: loop x) in
   let syntax_forms =
-    ["begin", analyze_begin; "lambda", analyze_lambda;
-     (*  ("define", analyze_define); *)
-     "set!", analyze_set;
-     "quote", analyze_quote; "quasiquote", analyze_quasiquote;
-     "if", analyze_alternative; "let", analyze_let; "let*", analyze_let_star;
-     "letrec", analyze_letrec; "cond", analyze_cond; "and", analyze_and;
-     "or", analyze_or; "case", analyze_case; "delay", analyze_delay;
-     "do", analyze_do; "time", analyze_time]
+    [ "begin", analyze_begin;
+      (* "lambda", analyze_lambda;
+      ("define", analyze_define);
+      "set!", analyze_set; *)
+      "quote", analyze_quote;
+      (* "quasiquote", analyze_quasiquote;
+      "if", analyze_alternative;
+      "let", analyze_let;
+      "let*", analyze_let_star;
+      "letrec", analyze_letrec;
+      "cond", analyze_cond;
+      "and", analyze_and;
+      "or", analyze_or;
+      "case", analyze_case;
+      "delay", analyze_delay;
+      "do", analyze_do;
+      "time", analyze_time *) ]
   in
   let env =
     List.fold_left
@@ -211,47 +202,47 @@ let rec analyze_program x =
       env syntax_forms
   in
   Printf.eprintf "DEBUG:\n%a\n%!" pp_datum x';
-  Emit.Quote Scheme.Snil
+  analyze 0 env x'
+  (* Emit.Quote (Dlist []) *)
   (* analyze 0 env x' *)
 
 and analyze qq env x =
   match x with
-  | Scheme.Snum _ | Scheme.Strue | Scheme.Sfalse
-  | Scheme.Snil | Scheme.Char _ | Scheme.String _ | Scheme.Vector _ ->
-      Emit.Quote x
-  | Scheme.Symbol s ->
-      begin try
-        let v = M.find s env in
-        match v with
-          Emit.Variable var as v ->
-            var.Emit.referenced <- true; Emit.Reference v
-        | _ -> Emit.Reference v
-      with Not_found -> failwith ("unknown identifier: " ^ s)
-      end
-  | Scheme.Scons cons -> analyze_cons qq env cons.Scheme.car cons.Scheme.cdr
-  | _ -> failwith "Ast.analyze: unhandled scheme datum"
-
-and analyze_cons qq env car cdr =
-  match car with
-    Scheme.Symbol s ->
+  | Dint _ | Dbool _ | Dchar _ | Dstring _
+  | Dlist [] | Dvec _ -> Emit.Quote x
+  | Dsym s ->
       begin try
         match M.find s env with
-          Emit.Syntax syn -> syn qq env cdr
-        | v ->
+        | Emit.Variable var as v ->
+            var.Emit.referenced <- true; Emit.Reference v
+        | _ as v -> Emit.Reference v
+      with Not_found -> failwith ("unknown identifier: " ^ s) end
+  | Dlist (x :: xs) -> analyze_cons qq env x xs
+  | _ -> failwith "analyze: unhandled scheme datum"
+
+and analyze_cons qq env x xs =
+  match x with
+  | Dsym s ->
+      begin try
+        match M.find s env with
+        | Emit.Syntax syn -> syn qq env xs
+        | _ as v ->
             Emit.Application
-              (Emit.Reference v, map_to_list (analyze qq env) cdr)
+              (Emit.Reference v, List.map (analyze qq env) xs)
       with Not_found -> failwith ("unknown identifier: " ^ s)
       end
   | _ ->
-      Emit.Application (analyze qq env car, map_to_list (analyze qq env) cdr)
-and analyze_begin qq env cdr =
-  try Emit.Begin (map_to_list (analyze qq env) cdr) with
-    NotAList -> failwith "bad syntax in (begin)"
-and analyze_quote qq env cdr =
-  match cdr with
-    Scheme.Scons {Scheme.car = a; Scheme.cdr = Scheme.Snil} -> Emit.Quote a
+      Emit.Application (analyze qq env x, List.map (analyze qq env) xs)
+
+and analyze_begin qq env xs =
+  try Emit.Begin (List.map (analyze qq env) xs)
+  with NotAList -> failwith "bad syntax in (begin)"
+
+and analyze_quote qq env = function
+  | a :: [] -> Emit.Quote a
   | _ -> failwith "bad syntax in (quote)"
-and analyze_body qq env cdr =
+
+(* and analyze_body qq env cdr =
   let rec loop cdr =
     match cdr with
       Scheme.Scons
@@ -303,12 +294,13 @@ and analyze_body qq env cdr =
   in
   let (x, xs) = loop cdr in
   match x with
-    Scheme.Snil -> Emit.Begin (map_to_list (analyze qq env) xs)
+  | Scheme.Snil -> Emit.Begin (map_to_list (analyze qq env) xs)
   | _ ->
       analyze qq env
         (Scheme.Scons
            {Scheme.car = Scheme.Symbol "letrec";
             Scheme.cdr = Scheme.Scons {Scheme.car = x; Scheme.cdr = xs}})
+
 and analyze_let_star qq env cdr =
   match cdr with
     Scheme.Scons {Scheme.car = bindings; Scheme.cdr = body} ->
@@ -327,10 +319,11 @@ and analyze_let_star qq env cdr =
                        {Scheme.car = Scheme.Symbol "let";
                         Scheme.cdr = loop bindings};
                     Scheme.cdr = Scheme.Snil}}
-        | _ -> failwith "bad syntax in (let*)"
+        | _ -> failwith "bad syntax in (let\*\)"
       in
       analyze_let qq env (loop bindings)
-  | _ -> failwith "bad syntax in (let*)"
+  | _ -> failwith "bad syntax in (let\*\)"
+
 and analyze_letrec qq env cdr =
   match cdr with
     Scheme.Scons {Scheme.car = bindings; Scheme.cdr = body} ->
@@ -369,6 +362,7 @@ and analyze_letrec qq env cdr =
         variables' inits';
       Emit.Let (variables', inits', analyze_body qq env' body)
   | _ -> failwith "bad syntax in (letrec)"
+
 and analyze_let qq env cdr =
   match cdr with
     Scheme.Scons
@@ -439,6 +433,7 @@ and analyze_let qq env cdr =
       in
       Emit.Let (variables', inits, analyze_body qq env' body)
   | _ -> failwith "bad syntax in (let)"
+
 and analyze_set qq env cdr =
   match cdr with
     Scheme.Scons
@@ -454,6 +449,7 @@ and analyze_set qq env cdr =
       with Not_found -> failwith "cannot set! an undefined variable"
       end
   | _ -> failwith "bad syntax in set!"
+
 and analyze_lambda qq env cdr =
   match cdr with
     Scheme.Scons cons ->
@@ -486,6 +482,7 @@ and analyze_lambda qq env cdr =
       | _ -> failwith "bad syntax in (lambda)"
       end
   | _ -> failwith "bad syntax in (lambda)"
+
 and analyze_alternative qq env cdr =
   match cdr with
     Scheme.Scons
@@ -506,6 +503,7 @@ and analyze_alternative qq env cdr =
         (analyze qq env condition, analyze qq env iftrue,
          analyze qq env iffalse)
   | _ -> failwith "Ast.analyze_alternative: bad syntax in (if)"
+
 and analyze_cond qq env cdr =
   let rec loop clauses =
     match clauses with
@@ -589,6 +587,7 @@ and analyze_quasiquote qq env cdr =
     Scheme.Scons {Scheme.car = x; Scheme.cdr = Scheme.Snil} ->
       analyze_quasiquote_aux (qq + 1) env x
   | _ -> failwith "bad syntax in (quasiquote)"
+
 and analyze_quasiquote_aux qq env cdr =
   let append =
     Emit.Reference
@@ -623,6 +622,7 @@ and analyze_quasiquote_aux qq env cdr =
         (append,
          [analyze_quasiquote_list qq env a; analyze_quasiquote_aux qq env b])
   | _ -> Emit.Quote cdr
+
 and analyze_quasiquote_list qq env car =
   let append =
     Emit.Reference
@@ -675,6 +675,7 @@ and analyze_quasiquote_list qq env car =
              [analyze_quasiquote_list qq env a;
               analyze_quasiquote_aux qq env b])])
   | _ -> Emit.Quote (Scheme.Scons {Scheme.car = car; Scheme.cdr = Scheme.Snil})
+
 and analyze_case qq env cdr =
   match cdr with
     Scheme.Scons {Scheme.car = key; Scheme.cdr = clauses} ->
@@ -715,11 +716,13 @@ and analyze_case qq env cdr =
       fold_last_cons help help_last (Emit.Quote Scheme.Void) [] clauses
   | Scheme.Snil -> Emit.Quote Scheme.Void
   | _ -> failwith "bad syntax in (case)"
+
 and analyze_delay qq env cdr =
   match cdr with
     Scheme.Scons {Scheme.car = e; Scheme.cdr = Scheme.Snil} ->
       Emit.Delay (analyze qq env e)
   | _ -> failwith "bad syntax in (delay)"
+
 and analyze_do qq env cdr =
   match cdr with
     Scheme.Scons
@@ -784,8 +787,10 @@ and analyze_do qq env cdr =
       | _ -> failwith "bad syntax in (do)"
       end
   | _ -> failwith "bad syntax in (do)"
+
 and analyze_time qq env cdr =
   match cdr with
     Scheme.Scons {Scheme.car = e; Scheme.cdr = Scheme.Snil} ->
       Emit.Time (analyze qq env e)
   | _ -> failwith "bad syntax in (time)"
+  *)

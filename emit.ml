@@ -1,4 +1,5 @@
 open Printf
+open Datum
 
 module M = Map.Make (String)
 
@@ -11,7 +12,7 @@ type variable =
     mutable arity : int }
 
 type t =
-    Quote of Scheme.t
+    Quote of datum
   | Reference of binding
   | Begin of t list
   | Lambda of bool * variable list * t
@@ -26,7 +27,7 @@ type t =
 and binding =
     Variable of variable
   | Builtin of (int * string) option * (int * string) list * string
-  | Syntax of (int -> binding M.t -> Scheme.t -> t)
+  | Syntax of (int -> binding M.t -> datum list -> t)
 
 let binding_name =
   function
@@ -58,9 +59,8 @@ let rec emit_separated sep f ppf x =
 let emit_alt pp x y ppf b =
   if b then pp ppf x else pp ppf y
 
-let rec emit ppf x =
-  match x with
-    Quote q -> emit_quote ppf q
+let rec emit ppf = function
+  | Quote q -> emit_quote ppf q
   | Reference binding -> emit_reference ppf binding
   | Application (f, args) -> emit_application ppf f args
   | Begin [] -> fprintf ppf "Scheme.Void"
@@ -78,24 +78,29 @@ let rec emit ppf x =
   | Time e -> emit_time ppf e
 
 and emit_quote ppf = function
-  | Scheme.Snum n -> fprintf ppf "(Scheme.Snum (Num.Int %s))" (Num.string_of_num n)
-  | Scheme.Char c -> fprintf ppf "(Scheme.Char '%c')" c
-  | Scheme.String s -> fprintf ppf "(Scheme.String \"%s\")" s
-  | Scheme.Scons cons ->
-      fprintf ppf "(Scheme.Scons {Scheme.car = %a; Scheme.cdr = %a})"
-        emit_quote cons.Scheme.car emit_quote cons.Scheme.cdr
-  | Scheme.Vector vector ->
+  | Dint n -> fprintf ppf "(Scheme.Snum (Num.Int %d))" n
+  | Dbool true -> fprintf ppf "Scheme.Strue"
+  | Dbool false -> fprintf ppf "Scheme.Sfalse"
+  | Dchar c -> fprintf ppf "(Scheme.Char %C)" c
+  | Dstring s -> fprintf ppf "(Scheme.String %S)" s
+  | Dlist xs ->
+      let rec loop ppf = function
+        | [] -> fprintf ppf "Scheme.Snil"
+        | x :: xs ->
+            fprintf ppf "(Scheme.Scons {Scheme.car=%a; Scheme.cdr=%a})"
+              emit_quote x loop xs
+      in loop ppf xs
+  | Ddot (xs, x) ->
+      let rec loop ppf = function
+        | [] -> emit_quote ppf x
+        | x :: xs ->
+            fprintf ppf "(Scheme.Scons {Scheme.car=%a; Scheme.cdr=%a})"
+              emit_quote x loop xs
+      in loop ppf xs
+  | Dvec v ->
       fprintf ppf "(Scheme.Vector [|%a|])"
-        (emit_separated "; " emit_quote) (Array.to_list vector)
-  | Scheme.Symbol s -> fprintf ppf "(Scheme.intern \"%s\")" s
-  | Scheme.Snil -> fprintf ppf "Scheme.Snil"
-  | Scheme.Strue -> fprintf ppf "Scheme.Strue"
-  | Scheme.Sfalse -> fprintf ppf "Scheme.Sfalse"
-  | Scheme.Void -> fprintf ppf "Scheme.Void"
-  | Scheme.In _ | Scheme.Out _ | Scheme.Promise _ | Scheme.Lambda _ |
-    Scheme.Lambda0 _ | Scheme.Lambda1 _ | Scheme.Lambda2 _ |
-    Scheme.Lambda3 _ | Scheme.Lambda4 _ ->
-      failwith "Emit.emit_quote"
+        (emit_separated "; " emit_quote) v
+  | Dsym s -> fprintf ppf "(Scheme.intern %S)" s
 
 and emit_begin ppf ls =
   let rec loop ppf = function
@@ -109,7 +114,8 @@ and emit_if ppf cond iftrue iffalse =
     emit cond emit iftrue emit iffalse
 
 and emit_case ppf key clauses elseclause =
-  match clauses with
+  assert false
+  (* match clauses with
   | [] ->
       fprintf ppf "(let _ = %a in %a)"
         emit key emit elseclause
@@ -131,7 +137,7 @@ and emit_case ppf key clauses elseclause =
             emit_separated " | "
               (fun ppf d -> fprintf ppf "%a -> %a" emit_pattern d emit e) ppf
               ds))
-        clauses emit elseclause
+        clauses emit elseclause*)
 
 and emit_reference ppf = function
   | Syntax _ -> failwith "emit: cannot reference syntax"
