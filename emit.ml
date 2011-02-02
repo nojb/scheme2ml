@@ -1,4 +1,4 @@
-open Format
+open Printf
 
 module M = Map.Make (String)
 
@@ -22,6 +22,7 @@ type t =
   | Case of t * (Scheme.t list * t) list * t
   | Delay of t
   | Time of t
+
 and binding =
     Variable of variable
   | Builtin of (int * string) option * (int * string) list * string
@@ -67,7 +68,7 @@ let rec emit ppf x =
   | Let ([], [], body) -> emit ppf body
   | Let (variables, inits, body) -> emit_let ppf variables inits body
   | Lambda (varargs, args, body) -> emit_lambda ppf varargs args body
-  | If (cond, iftrue, iffalse) ->emit_if ppf cond iftrue iffalse
+  | If (cond, iftrue, iffalse) -> emit_if ppf cond iftrue iffalse
   | Case (key, clause, elseclause) -> emit_case ppf key clause elseclause
   | Delay promise ->
       fprintf ppf "(Scheme.Promise (lazy %a))" emit promise
@@ -97,7 +98,7 @@ and emit_begin ppf ls =
   let rec loop ppf = function
     | [] -> fprintf ppf "Scheme.Void"
     | [a] -> emit ppf a
-    | a :: b -> fprintf ppf "ignore (%a); %a" emit a loop b
+    | a :: b -> fprintf ppf "ignore %a; %a" emit a loop b
   in fprintf ppf "(%a)" loop ls
 
 and emit_if ppf cond iftrue iffalse =
@@ -179,13 +180,14 @@ and emit_application ppf f args =
       with Not_found ->
         let rec loop count ppf args =
           if count > fixed then
-            let rec loop2 ppf = function
+            emit_cons emit ppf args
+            (* let rec loop2 ppf = function
               | [] -> fprintf ppf "Scheme.Snil"
               | a :: b ->
                   fprintf ppf "(Scheme.Scons {Scheme.car=%a; Scheme.cdr=%a})"
                     emit a loop2 b
             in
-            loop2 ppf args
+            loop2 ppf args *)
           else
             match args with
             | [] -> failwith (name ^ ": bad arity")
@@ -209,14 +211,15 @@ and emit_application ppf f args =
       else if List.length args > 0 then
         let rec loop i ppf args =
           if i >= var.arity - 1 && var.varargs then
-            let rec loop2 ppf = function
+            (* let rec loop2 ppf = function
               | [] -> fprintf ppf "Scheme.Snil"
               | a :: b ->
                   fprintf ppf "(Scheme.Scons {Scheme.car = %a; Scheme.cdr =\
                     %a})"
                     emit a loop2 b
             in
-            loop2 ppf args
+            loop2 ppf args*)
+            emit_cons emit ppf args
           else if i < var.arity then
             match args with
               [] -> failwith (var.name ^ ": arity error")
@@ -233,14 +236,14 @@ and emit_application ppf f args =
             emit f (emit_separated " " emit) args
       else
         begin
-          let rec loop ppf = function
+          (* let rec loop ppf = function
             | [] -> fprintf ppf "Scheme.Snil"
             | a :: b ->
                 fprintf ppf "(Scheme.Scons {Scheme.car=%a;Scheme.cdr=%a})"
                   emit a loop b
-          in
-          fprintf ppf "(Scheme.apply %a (%a))"
-            emit f loop args
+          in*)
+          fprintf ppf "(Scheme.apply %a %a)"
+            emit f (emit_cons emit) args
         end
 
 and emit_let ppf variables inits body =
@@ -380,4 +383,4 @@ and emit_time ppf e =
     emit e
 
 let pp ppf x =
-  fprintf ppf "%a@." emit x
+  fprintf ppf "%a\n%!" emit x
