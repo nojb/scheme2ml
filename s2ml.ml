@@ -1,8 +1,8 @@
-let main () =
-  let lexbuf = Lexing.from_channel stdin in
-  let prg = Parser.program Lexer.token lexbuf in
-  (*let env = Builtins.populate Ast.M.empty in do {*)
-  Emit.emit (Ast.analyze_program prg);
-  Printf.printf ";%!\n"
+let compile inch outch =
+  Emit.pp (Format.formatter_of_out_channel outch)
+    (Ast.analyze_program
+      (Parser.program Lexer.token
+        (Lexing.from_channel inch)))
 
-let _ = main ()
+let () =
+  compile stdin stdout

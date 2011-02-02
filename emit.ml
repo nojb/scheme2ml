@@ -1,3 +1,5 @@
+open Format
+
 module M = Map.Make (String)
 
 type variable =
@@ -36,186 +38,160 @@ let binding_mutable =
     Variable var -> var.mut
   | Syntax _ | Builtin (_, _, _) -> false
 
-let rec emit_separated_last sep f last x =
-  match x with
-    [] -> ()
-  | [a] -> last a
-  | a :: b -> f a; Printf.printf "%s" sep; emit_separated_last sep f last b
+let rec emit_cons pp ppf = function
+  | [] -> fprintf ppf "Scheme.Snil"
+  | a :: b ->
+      fprintf ppf "(Scheme.Scons {Scheme.car=%a;Scheme.cdr=%a})"
+        pp a (emit_cons pp) b
 
-let rec emit_separated sep f x =
+let rec emit_separated sep f ppf x =
   match x with
-    [] -> ()
-  | [a] -> f a
-  | a :: b -> f a; Printf.printf "%s" sep; emit_separated sep f b
+  | [] -> ()
+  | [a] -> f ppf a
+  | a :: b ->
+      fprintf ppf "%a %s %a" f a sep (emit_separated sep f) b
 
-let rec emit x =
+let emit_alt ppx x ppy y ppf b =
+  if b then ppx ppf x else ppy ppf y
+
+let rec emit ppf x =
   match x with
-    Quote q -> emit_quote q
-  | Reference binding -> emit_reference binding
-  | Application (f, args) -> emit_application f args
-  | Begin [] -> Printf.printf "Scheme.Void"
-  | Begin [l] -> emit l
-  | Begin ls -> emit_begin ls
+    Quote q -> emit_quote ppf q
+  | Reference binding -> emit_reference ppf binding
+  | Application (f, args) -> emit_application ppf f args
+  | Begin [] -> fprintf ppf "Scheme.Void"
+  | Begin [l] -> emit ppf l
+  | Begin ls -> emit_begin ppf ls
   | Set (var, exp) ->
-      Printf.printf "(%s.val := " var.name;
-      emit exp;
-      Printf.printf " ; Scheme.Void)"
-  | Let ([], [], body) -> emit body
-  | Let (variables, inits, body) -> emit_let variables inits body
-  | Lambda (varargs, args, body) -> emit_lambda varargs args body
-  | If (cond, iftrue, iffalse) -> emit_if cond iftrue iffalse
-  | Case (key, clause, elseclause) -> emit_case key clause elseclause
+      fprintf ppf "(%s := %a; Scheme.Void)" var.name emit exp
+  | Let ([], [], body) -> emit ppf body
+  | Let (variables, inits, body) -> emit_let ppf variables inits body
+  | Lambda (varargs, args, body) -> emit_lambda ppf varargs args body
+  | If (cond, iftrue, iffalse) ->emit_if ppf cond iftrue iffalse
+  | Case (key, clause, elseclause) -> emit_case ppf key clause elseclause
   | Delay promise ->
-      Printf.printf "(Scheme.Promise (lazy "; emit promise; Printf.printf "))"
-  | Time e -> emit_time e
+      fprintf ppf "(Scheme.Promise (lazy %a))" emit promise
+  | Time e -> emit_time ppf e
 
-and emit_quote = function
-  | Scheme.Snum n -> Printf.printf "(Scheme.Snum (Num.Int %s))" (Num.string_of_num n)
-  | Scheme.Char char -> Printf.printf "(Scheme.Char '%c')" char
-  | Scheme.String string -> Printf.printf "(Scheme.String \"%s\")" string
+and emit_quote ppf = function
+  | Scheme.Snum n -> fprintf ppf "(Scheme.Snum (Num.Int %s))" (Num.string_of_num n)
+  | Scheme.Char char -> fprintf ppf "(Scheme.Char '%c')" char
+  | Scheme.String string -> fprintf ppf "(Scheme.String \"%s\")" string
   | Scheme.Scons cons ->
-      Printf.printf "(Scheme.Scons { Scheme.car = ";
-      emit_quote cons.Scheme.car;
-      Printf.printf "; Scheme.cdr = ";
-      emit_quote cons.Scheme.cdr;
-      Printf.printf "})"
+      fprintf ppf "(Scheme.Scons {Scheme.car = %a; Scheme.cdr = %a})"
+        emit_quote cons.Scheme.car emit_quote cons.Scheme.cdr
   | Scheme.Vector vector ->
-      Printf.printf "(Scheme.Vector [|";
-      let len = Array.length vector in
-      for i = 0 to len - 1 do
-        if i = len - 1 then
-          begin emit_quote vector.(i); Printf.printf "|])" end
-        else if i >= len then Printf.printf "|])"
-        else begin emit_quote vector.(i); Printf.printf "; " end
-      done
-  | Scheme.Symbol s -> Printf.printf "(Scheme.intern \"%s\")" s
-  | Scheme.Snil -> Printf.printf "Scheme.Snil"
-  | Scheme.Strue -> Printf.printf "Scheme.Strue"
-  | Scheme.Sfalse -> Printf.printf "Scheme.Sfalse"
-  | Scheme.Void -> Printf.printf "Scheme.Void"
+      fprintf ppf "(Scheme.Vector [|%a|])"
+        (emit_separated "; " emit_quote) (Array.to_list vector)
+  | Scheme.Symbol s -> fprintf ppf "(Scheme.intern \"%s\")" s
+  | Scheme.Snil -> fprintf ppf "Scheme.Snil"
+  | Scheme.Strue -> fprintf ppf "Scheme.Strue"
+  | Scheme.Sfalse -> fprintf ppf "Scheme.Sfalse"
+  | Scheme.Void -> fprintf ppf "Scheme.Void"
   | Scheme.In _ | Scheme.Out _ | Scheme.Promise _ | Scheme.Lambda _ |
     Scheme.Lambda0 _ | Scheme.Lambda1 _ | Scheme.Lambda2 _ |
     Scheme.Lambda3 _ | Scheme.Lambda4 _ ->
       failwith "Emit.emit_quote"
 
-and emit_begin ls =
-  Printf.printf "(";
-  let rec loop ls =
-    match ls with
-      [] -> Printf.printf "Scheme.Void"
-    | [a] -> emit a
-    | a :: b -> Printf.printf "ignore ("; emit a; Printf.printf "); "; loop b
-  in
-  loop ls; Printf.printf ")"
-and emit_if cond iftrue iffalse =
-  Printf.printf "(if (Scheme.Strue == ";
-  emit cond;
-  Printf.printf ") then ";
-  emit iftrue;
-  Printf.printf " else ";
-  emit iffalse;
-  Printf.printf ")"
-and emit_case key clauses elseclause =
+and emit_begin ppf ls =
+  let rec loop ppf = function
+    | [] -> fprintf ppf "Scheme.Void"
+    | [a] -> emit ppf a
+    | a :: b -> fprintf ppf "ignore (%a); %a" emit a loop b
+  in fprintf ppf "(%a)" loop ls
+
+and emit_if ppf cond iftrue iffalse =
+  fprintf ppf "(if Scheme.Strue = %a then %a else %a)"
+    emit cond emit iftrue emit iffalse
+
+and emit_case ppf key clauses elseclause =
   match clauses with
-    [] ->
-      Printf.printf "(let _ = ";
-      emit key;
-      Printf.printf " in ";
-      emit elseclause;
-      Printf.printf ")"
+  | [] ->
+      fprintf ppf "(let _ = %a in %a)"
+        emit key emit elseclause
   | clauses ->
-      let emit_pattern d =
-        match d with
-          Scheme.Symbol s ->
-            Printf.printf
+      let emit_pattern ppf = function
+        | Scheme.Symbol s ->
+            fprintf ppf
               "Scheme.Symbol _ as s when (Scheme.intern \"%s\" == s)" s
-        | _ -> emit_quote d
+        | _ as d -> emit_quote ppf d
       in
-      Printf.printf "(match ";
-      emit key;
-      Printf.printf " with [ ";
-      emit_separated "|"
-        (fun (ds, e) ->
-           (* do { *)
-           emit_separated " | "
-             (fun d -> emit_pattern d; Printf.printf " -> "; emit e) ds)
-        clauses;
-      Printf.printf " | _ -> ";
-      emit elseclause;
-      Printf.printf "])"
-and emit_reference binding =
-  match binding with
-    Syntax _ -> failwith "emit: cannot reference syntax"
+      fprintf ppf "(match %a with | %a | _ -> %a)"
+        emit key
+        (emit_separated "|"
+          (fun ppf (ds, e) ->
+            emit_separated " | "
+              (fun ppf d -> fprintf ppf "%a -> %a" emit_pattern d emit e) ppf
+              ds))
+        clauses emit elseclause
+
+and emit_reference ppf = function
+  | Syntax _ -> failwith "emit: cannot reference syntax"
   | Variable var ->
-      if var.mut then Printf.printf "%s.val" var.name
-      else Printf.printf "%s" var.name
+      if var.mut then fprintf ppf "!%s" var.name
+      else fprintf ppf "%s" var.name
   | Builtin (Some (0, varargs), _, _) ->
-      Printf.printf "(Scheme.Lambda %s)" varargs
+      fprintf ppf "(Scheme.Lambda %s)" varargs
   | Builtin (Some (fixed, varargs), _, name) ->
-      Printf.printf "(Scheme.Lambda (fun args -> match args with [";
-      let rec loop count =
-        if count > fixed then "rest " ^ String.make (count - 1) '}'
+      fprintf ppf "(Scheme.Lambda (fun args -> match args with |";
+      let rec loop count ppf =
+        if count > fixed then fprintf ppf "rest"
         else
-          "Scheme.Scons { Scheme.car = arg" ^ string_of_int count ^
-          "; Scheme.cdr = " ^ loop (count + 1)
+          fprintf ppf "(Scheme.Scons {Scheme.car = arg%d; Scheme.cdr = %t})" count
+            (loop (count+1))
       in
-      Printf.printf "%s -> %s" (loop 1) varargs;
-      for i = 1 to fixed do Printf.printf " arg%d " i done;
-      Printf.printf " rest | _ -> failwith \"%s: bad arity\" ]))" name
+      fprintf ppf "%t -> %s" (loop 1) varargs;
+      for i = 1 to fixed do fprintf ppf " arg%d " i done;
+      fprintf ppf " rest | _ -> failwith \"%s: bad arity\"))" name
   | Builtin (None, [arity, mlname], name) ->
-      if arity < 5 then Printf.printf "(Scheme.Lambda%d %s)" arity mlname
+      if arity < 5 then fprintf ppf "(Scheme.Lambda%d %s)" arity mlname
       else assert false
   | Builtin (None, impls, name) ->
-      Printf.printf "(Scheme.Lambda (fun args -> match args with [";
-      let rec help (arity, name) =
-        let rec loop count =
-          if count > arity then "Scheme.Snil" ^ String.make (count - 1) '}'
+      fprintf ppf "(Scheme.Lambda (fun args -> match args with |";
+      let rec help ppf (arity, name) =
+        let rec loop count ppf =
+          if count > arity then fprintf ppf "Scheme.Snil"
           else
-            "Scheme.Scons { Scheme.car = arg" ^ string_of_int count ^
-            "; Scheme.cdr = " ^ loop (count + 1)
+            fprintf ppf "(Scheme.Scons {Scheme.car = arg%d; Scheme.cdr = %t})"
+              count (loop (count+1))
         in
-        Printf.printf "%s -> %s" (loop 1) name;
-        for i = 1 to arity do Printf.printf " arg%d " i done;
-        Printf.printf " | "
+        fprintf ppf "%t -> %s" (loop 1) name;
+        for i = 1 to arity do fprintf ppf " arg%d " i done;
+        fprintf ppf " | "
       in
-      List.iter help impls;
-      Printf.printf "_ -> failwith \"%s: bad arity\" ]))" name
-and emit_application f args =
+      List.iter (help ppf) impls;
+      fprintf ppf "_ -> failwith \"%s: bad arity\"))" name
+
+and emit_application ppf f args =
   match f with
-    Reference (Syntax _) -> failwith "emit: cannot emit for syntax"
+  | Reference (Syntax _) -> failwith "emit: cannot emit for syntax"
   | Reference (Builtin (Some (0, "Scheme.vector"), [], "vector")) ->
-      Printf.printf "(Scheme.Vector [|";
-      emit_separated ";" emit args;
-      Printf.printf "|])"
+      fprintf ppf "(Scheme.Vector [|%a|])"
+        (emit_separated "; " emit) args
   | Reference (Builtin (Some (fixed, varargs), impls, name)) ->
       let arity = List.length args in
       begin try
         let impl = List.assoc arity impls in
-        Printf.printf "(%s " impl;
-        if arity = 0 then Printf.printf "()"
-        else emit_separated " " emit args;
-        Printf.printf ")"
+        fprintf ppf "(%s " impl;
+        if arity = 0 then fprintf ppf "()"
+        else emit_separated " " emit ppf args;
+        fprintf ppf ")"
       with Not_found ->
-        Printf.printf "(%s " varargs;
-        let rec loop count args =
+        let rec loop count ppf args =
           if count > fixed then
-            let rec loop2 args =
-              match args with
-                [] -> Printf.printf "Scheme.Snil"
+            let rec loop2 ppf = function
+              | [] -> fprintf ppf "Scheme.Snil"
               | a :: b ->
-                  Printf.printf "Scheme.Scons { Scheme.car = ";
-                  emit a;
-                  Printf.printf "; Scheme.cdr = ";
-                  loop2 b;
-                  Printf.printf "}"
+                  fprintf ppf "(Scheme.Scons {Scheme.car=%a; Scheme.cdr=%a})"
+                    emit a loop2 b
             in
-            Printf.printf "("; loop2 args; Printf.printf ")"
+            loop2 ppf args
           else
             match args with
-              [] -> failwith (name ^ ": bad arity")
-            | a :: b -> emit a; Printf.printf " "; loop (count + 1) b
+            | [] -> failwith (name ^ ": bad arity")
+            | a :: b -> fprintf ppf "%a %a" emit a (loop (count+1)) b
         in
-        loop 1 args; Printf.printf ")"
+        fprintf ppf "(%s %a)" varargs (loop 1) args
       end
   | Reference (Builtin (None, impls, name)) ->
       let arity = List.length args in
@@ -223,205 +199,185 @@ and emit_application f args =
         try List.assoc arity impls with
           Not_found -> failwith (name ^ ": bad arity")
       in
-      Printf.printf "(%s " impl;
-      if arity = 0 then Printf.printf "()" else emit_separated " " emit args;
-      Printf.printf ")"
+      fprintf ppf "(%s " impl;
+      if arity = 0 then fprintf ppf "()" else emit_separated " " emit ppf args;
+      fprintf ppf ")"
   | Reference (Variable var) when not var.mut && var.closure ->
-      Printf.printf "(imp_%s " var.name;
+      fprintf ppf "(imp_%s " var.name;
       if var.varargs && var.arity - 1 > List.length args then
         failwith (var.name ^ ": arity error")
       else if List.length args > 0 then
-        let rec loop args i =
+        let rec loop i ppf args =
           if i >= var.arity - 1 && var.varargs then
-            let rec loop2 args =
-              match args with
-                [] -> Printf.printf " Scheme.Snil "
+            let rec loop2 ppf = function
+              | [] -> fprintf ppf "Scheme.Snil"
               | a :: b ->
-                  Printf.printf " (Scheme.Scons { Scheme.car = ";
-                  emit a;
-                  Printf.printf " ; Scheme.cdr = ";
-                  loop2 b;
-                  Printf.printf " }) "
+                  fprintf ppf "(Scheme.Scons {Scheme.car = %a; Scheme.cdr =\
+                    %a})"
+                    emit a loop2 b
             in
-            loop2 args
+            loop2 ppf args
           else if i < var.arity then
             match args with
               [] -> failwith (var.name ^ ": arity error")
-            | a :: b -> emit a; Printf.printf " "; loop b (i + 1)
+            | a :: b -> fprintf ppf "%a %a" emit a (loop (i+1)) b
         in
-        loop args 0
-      else if var.varargs then Printf.printf "Scheme.Snil"
-      else Printf.printf "()";
-      Printf.printf ")"
+        loop 0 ppf args
+      else if var.varargs then fprintf ppf "Scheme.Snil"
+      else fprintf ppf "()";
+      fprintf ppf ")"
   | _ ->
       if List.length args < 5 then
-        begin
-          Printf.printf "(Scheme.apply%d " (List.length args);
-          emit f;
-          Printf.printf " ";
-          emit_separated " " emit args;
-          Printf.printf ")"
-        end
+          fprintf ppf "(Scheme.apply%d %a %a)"
+            (List.length args)
+            emit f (emit_separated " " emit) args
       else
         begin
-          Printf.printf "(Scheme.apply ";
-          emit f;
-          Printf.printf "(";
-          let rec loop args =
-            match args with
-              [] -> Printf.printf "Scheme.Snil"
+          let rec loop ppf = function
+            | [] -> fprintf ppf "Scheme.Snil"
             | a :: b ->
-                Printf.printf "Scheme.Scons { Scheme.car = ";
-                emit a;
-                Printf.printf "; Scheme.cdr = ";
-                loop b;
-                Printf.printf "}"
+                fprintf ppf "(Scheme.Scons {Scheme.car=%a;Scheme.cdr=%a})"
+                  emit a loop b
           in
-          loop args; Printf.printf "))"
+          fprintf ppf "(Scheme.apply %a (%a))"
+            emit f loop args
         end
-and emit_let variables inits body =
-  let emit_var var init =
+
+and emit_let ppf variables inits body =
+  let emit_var ppf var init =
     match init with
-      Lambda (_, [], body) when not var.mut ->
-        Printf.printf "imp_%s = fun () -> " var.name;
-        emit body;
+    | Lambda (_, [], body) when not var.mut ->
+        fprintf ppf "imp_%s = fun () -> %a" var.name
+          emit body;
         if var.referenced then
-          Printf.printf " and %s = (Scheme.Lambda0 imp_%s)" var.name var.name;
-        Printf.printf " and "
+          fprintf ppf " and %s = (Scheme.Lambda0 imp_%s)" var.name var.name;
+        fprintf ppf " and "
     | Lambda (varargs, args, body) when not var.mut ->
-        Printf.printf "imp_%s = fun %s -> " var.name
+        fprintf ppf "imp_%s = fun %s -> " var.name
           (String.concat " " (List.map (fun arg -> arg.name) args));
         List.iter
           (fun arg ->
              if arg.mut then
-               Printf.printf "let %s = ref %s in " arg.name arg.name)
+               fprintf ppf "let %s = ref %s in " arg.name arg.name)
           args;
-        emit body;
+        emit ppf body;
         if var.referenced then
           begin
-            Printf.printf " and %s = " var.name;
+            fprintf ppf " and %s = " var.name;
             if List.length args < 5 then
-              Printf.printf "(Scheme.Lambda%d imp_%s)" (List.length args)
+              fprintf ppf "(Scheme.Lambda%d imp_%s)" (List.length args)
                 var.name
             else
               emit_lambda_body varargs args
-                (fun () ->
-                   Printf.printf "imp_%s %s" var.name
+                (fun ppf ->
+                   fprintf ppf "imp_%s %s" var.name
                      (String.concat " " (List.map (fun a -> a.name) args)))
+                ppf
           end;
-        Printf.printf " and "
+        fprintf ppf " and "
     | _ ->
-        Printf.printf "%s = " var.name;
-        if var.mut then Printf.printf "ref (";
-        emit init;
-        if var.mut then Printf.printf ")";
-        Printf.printf " and "
+        fprintf ppf "%s = " var.name;
+        if var.mut then fprintf ppf "ref (";
+        emit ppf init;
+        if var.mut then fprintf ppf ")";
+        fprintf ppf " and "
   in
-  let emit_last_var var init =
+  let emit_last_var ppf var init =
     match init with
-      Lambda (_, [], body) when not var.mut ->
-        Printf.printf "imp_%s = fun () -> " var.name;
-        emit body;
+    | Lambda (_, [], body) when not var.mut ->
+        fprintf ppf "imp_%s = fun () -> %a" var.name
+          emit body;
         if var.referenced then
-          Printf.printf " and %s = (Scheme.Lambda0 imp_%s)" var.name var.name;
-        Printf.printf " in "
+          fprintf ppf " and %s = (Scheme.Lambda0 imp_%s)" var.name var.name;
+        fprintf ppf " in "
     | Lambda (varargs, args, body) when not var.mut ->
-        Printf.printf "imp_%s = fun %s -> " var.name
+        fprintf ppf "imp_%s = fun %s -> " var.name
           (String.concat " " (List.map (fun arg -> arg.name) args));
         List.iter
           (fun arg ->
              if arg.mut then
-               Printf.printf "let %s = ref %s in " arg.name arg.name)
+               fprintf ppf "let %s = ref %s in " arg.name arg.name)
           args;
-        emit body;
+        emit ppf body;
         if var.referenced then
           begin
-            Printf.printf " and %s = " var.name;
+            fprintf ppf " and %s = " var.name;
             if List.length args < 5 then
-              Printf.printf "(Scheme.Lambda%d imp_%s)" (List.length args)
+              fprintf ppf "(Scheme.Lambda%d imp_%s)" (List.length args)
                 var.name
             else
               emit_lambda_body varargs args
-                (fun () ->
-                   Printf.printf "imp_%s %s" var.name
+                (fun ppf ->
+                   fprintf ppf "imp_%s %s" var.name
                      (String.concat " " (List.map (fun a -> a.name) args)))
+                ppf
           end;
-        Printf.printf " in "
+        fprintf ppf " in "
     | _ ->
-        Printf.printf "%s = " var.name;
-        if var.mut then Printf.printf "ref (";
-        emit init;
-        if var.mut then Printf.printf ")";
-        Printf.printf " in "
+        fprintf ppf "%s = " var.name;
+        if var.mut then fprintf ppf "ref (";
+        emit ppf init;
+        if var.mut then fprintf ppf ")";
+        fprintf ppf " in "
   in
-  Printf.printf "(let rec ";
-  let rec loop variables inits =
+  let rec loop variables inits ppf =
     match variables, inits with
-      [], [] -> assert false
-    | [a], [b] -> emit_last_var a b
-    | a :: a', b :: b' -> emit_var a b; loop a' b'
+    | [], [] -> assert false
+    | [a], [b] -> emit_last_var ppf a b
+    | a :: a', b :: b' -> emit_var ppf a b; loop a' b' ppf
     | _ -> assert false
   in
-  loop variables inits; emit body; Printf.printf ")"
-and emit_lambda_body varargs args f =
-  Printf.printf "(Scheme.Lambda (fun args -> ";
-  Printf.printf "match args with [";
-  let rec loop acc args =
-    match args with
-      [] -> "Scheme.Snil " ^ String.make acc '}'
-    | [a] ->
-        if varargs then a.name ^ String.make acc '}'
-        else
-          "Scheme.Scons { Scheme.car = " ^ a.name ^
-          "; Scheme.cdr = Scheme.Snil " ^ String.make (acc + 1) '}'
+  fprintf ppf "(let rec %t %a)" (loop variables inits) emit body
+
+and emit_lambda_body varargs args f ppf =
+  let rec loop ppf = function
+    | [] -> fprintf ppf "Scheme.Snil"
     | a :: b ->
-        "Scheme.Scons {Scheme.car = " ^ a.name ^ "; Scheme.cdr = " ^
-        loop (acc + 1) b
+        if varargs then fprintf ppf "%s" a.name
+        else
+          fprintf ppf "(Scheme.Scons {Scheme.car=%s; Scheme.cdr=%a})"
+            a.name loop b
   in
-  Printf.printf "%s -> " (loop 0 args);
-  f ();
-  Printf.printf "| _ -> failwith \"incorrect arity\" ]))"
-and emit_lambda varargs args body =
+  fprintf ppf "(Scheme.Lambda (fun args -> ";
+  fprintf ppf "match args with | %a -> %t | _ -> failwith \"incorrect arity\"))"
+    loop args f
+
+and emit_lambda ppf varargs args body =
   if List.length args >= 5 then
-    begin
-      Printf.printf "(Scheme.Lambda (fun args -> ";
-      Printf.printf "match args with [";
-      let rec loop acc args =
-        match args with
-          [] -> "Scheme.Snil " ^ String.make acc '}'
-        | [a] ->
-            if varargs then a.name ^ String.make acc '}'
-            else
-              "Scheme.Scons { Scheme.car = " ^ a.name ^
-              "; Scheme.cdr = Scheme.Snil " ^ String.make (acc + 1) '}'
-        | a :: b ->
-            "Scheme.Scons {Scheme.car = " ^ a.name ^ "; Scheme.cdr = " ^
-            loop (acc + 1) b
-      in
-      Printf.printf "%s -> " (loop 0 args);
-      List.iter
-        (fun arg ->
-           if arg.mut then
-             Printf.printf "let %s = ref %s in " arg.name arg.name)
-        args;
-      emit body;
-      Printf.printf "| _ -> failwith \"incorrect arity\" ]))"
-    end
+    let rec loop ppf = function
+      | [] -> fprintf ppf "Scheme.Snil"
+      | a :: b ->
+          if varargs then fprintf ppf "%s" a.name
+          else
+            fprintf ppf "(Scheme.Scons {Scheme.car=%s; Scheme.cdr=%a})"
+              a.name loop b
+    in
+    fprintf ppf "(Scheme.Lambda (fun args ->
+      match args with | %a -> %a %a
+      | _ -> failwith \"incorrect arity\"))"
+      loop args 
+      (emit_separated "\n" (fun ppf s -> fprintf ppf "let %s = ref %s in "
+        s.name s.name))
+        (List.filter (fun arg -> arg.mut) args)
+      emit body
   else
-    begin
-      Printf.printf "(Scheme.Lambda%d (fun %s -> " (List.length args)
-        (if List.length args = 0 then "()"
-         else String.concat " " (List.map (fun a -> a.name) args));
-      List.iter
-        (fun arg ->
-           if arg.mut then
-             Printf.printf "let %s = ref %s in " arg.name arg.name)
-        args;
-      emit body;
-      Printf.printf "))"
-    end
-and emit_time e =
-  Printf.printf "(let t = Sys.time () in let e = ";
-  emit e;
-  Printf.printf " in let t' = Sys.time () in ";
-  Printf.printf "do{Printf.printf \"time: %%f\\n\" (t' -. t);e})"
+    fprintf ppf "(Scheme.Lambda%d (fun %t -> %a %a))"
+      (List.length args)
+      (fun ppf ->
+        if List.length args = 0 then fprintf ppf "()"
+        else emit_separated " "
+          (fun ppf s -> fprintf ppf "%s" s) ppf
+          (List.map (fun a -> a.name) args))
+      (emit_separated "\n" (fun ppf s -> fprintf ppf "let %s = ref %s in " s.name
+      s.name))
+      (List.filter (fun arg -> arg.mut) args)
+      emit body
+
+and emit_time ppf e =
+  fprintf ppf
+    "(let t = Sys.time () in let e = %a in let t' = Sys.time () in
+      Printf.printf \"time: %%f\\n\" (t'-.t); e)"
+    emit e
+
+let pp ppf x =
+  fprintf ppf "%a@." emit x
