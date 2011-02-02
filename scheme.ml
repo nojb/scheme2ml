@@ -9,7 +9,7 @@ type t =
   | Symbol of string
   | Strue
   | Sfalse
-  | Char of char
+  | Schar of char
   | Vector of t array
   | String of string
   | Scons of cons
@@ -19,7 +19,7 @@ type t =
   | Lambda2 of (t -> t -> t)
   | Lambda3 of (t -> t -> t -> t)
   | Lambda4 of (t -> t -> t -> t -> t)
-  | Promise of t Lazy.t
+  | Spromise of t Lazy.t
   | Void
   | In of in_port
   | Out of out_port
@@ -66,7 +66,7 @@ let is_eqv a b =
   if a == b then Strue
   else
     match a, b with
-      Char a, Char b -> if a = b then Strue else Sfalse
+      Schar a, Schar b -> if a = b then Strue else Sfalse
     | Vector a, Vector b -> if a == b then Strue else Sfalse
     | String a, String b -> if a = b then Strue else Sfalse
     | Snum a, Snum b -> if a =/ b then Strue else Sfalse
@@ -77,7 +77,7 @@ let is_equal a b =
   else
     let rec is_equal_aux a b =
       match a, b with
-        Char a, Char b -> a = b
+        Schar a, Schar b -> a = b
       | Scons a, Scons b -> is_equal_aux a.car b.car && is_equal_aux a.cdr b.cdr
       | Vector a, Vector b ->
           let la = Array.length a in
@@ -201,7 +201,7 @@ let rec to_string =
   | Symbol s -> s
   | Strue -> "#t"
   | Sfalse -> "#f"
-  | Char c -> String.make 1 c
+  | Schar c -> String.make 1 c
   | String s -> s
   | Vector vector ->
       let len = Array.length vector in
@@ -223,7 +223,7 @@ let rec to_string =
       "(" ^ loop cons ^ ")"
   | Snil -> "()"
   | Void -> ""
-  | Promise _ -> "#<promise>"
+  | Spromise _ -> "#<promise>"
   | Lambda _ | Lambda0 _ | Lambda1 _ | Lambda2 _ | Lambda3 _ | Lambda4 _ ->
       "#<closure>"
 
@@ -548,8 +548,9 @@ let assq = ass "assq" is_eq
 let assv = ass "assv" is_eqv
 
 let assoc = ass "assoc" is_equal
+
 let _not obj =
-  if obj == Strue then Sfalse else Strue
+  if not (obj = Sfalse) then Sfalse else Strue
 
 let is_symbol = function
   | Symbol _ -> Strue
@@ -628,42 +629,42 @@ let vector_fill vector fill =
   | _ -> failwith "vector-fill!: not a vector"
 
 let is_char = function
-  | Char _ -> Strue
+  | Schar _ -> Strue
   | _ -> Sfalse
 
 let is_char_eq char1 char2 =
   match char1, char2 with
-  | Char char1, Char char2 ->
+  | Schar char1, Schar char2 ->
       if char1 = char2 then Strue else Sfalse
   | _ ->
       failwith "char=?: bad arguments"
 
 let is_char_alphabetic = function
-  | Char c -> if 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' then Strue else Sfalse
+  | Schar c -> if 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' then Strue else Sfalse
   | _ -> failwith "char-alphabetic?: not a char"
 
 let is_char_numeric = function
-  | Char c -> if '0' <= c && c <= '9' then Strue else Sfalse
+  | Schar c -> if '0' <= c && c <= '9' then Strue else Sfalse
   | _ -> failwith "char-numeric?: not a char"
 
 let is_char_whitespace = function
-  | Char c -> if c = ' ' || c = '\t' || c = '\n' || c = '\r' then Strue else Sfalse
+  | Schar c -> if c = ' ' || c = '\t' || c = '\n' || c = '\r' then Strue else Sfalse
   | _ -> failwith "char-whitespace?: not a char"
 
 let is_char_upper_case = function
-  | Char c -> if c <= 'Z' && 'A' <= c then Strue else Sfalse
+  | Schar c -> if c <= 'Z' && 'A' <= c then Strue else Sfalse
   | _ -> failwith "char-upper-case?: not a char"
 
 let is_char_lower_case = function
-  | Char c -> if 'a' <= c && c <= 'z' then Strue else Sfalse
+  | Schar c -> if 'a' <= c && c <= 'z' then Strue else Sfalse
   | _ -> failwith "char-lower-case?: not a char"
 
 let char_to_integer = function
-  | Char char -> Snum (Int (int_of_char char))
+  | Schar c -> Snum (Int (int_of_char c))
   | _ -> failwith "char->integer: not a char"
 
 let integer_to_char = function
-  | Snum (Int n) -> Char (char_of_int n)
+  | Snum (Int n) -> Schar (char_of_int n)
   | _ -> failwith "integer->char: not an integer"
 
 let is_string = function
@@ -678,7 +679,7 @@ let string_ref string k =
   match string with
   | String s ->
       begin match k with
-      | Snum (Int n) -> Char s.[n]
+      | Snum (Int n) -> Schar s.[n]
       | _ -> failwith "string-ref: not an integer"
       end
   | _ -> failwith "string-ref: not a string"
@@ -689,7 +690,7 @@ let string_set string k char =
       begin match k with
       | Snum (Int n) ->
           begin match char with
-            Char c -> s.[n] <- c; Void
+            Schar c -> s.[n] <- c; Void
           | _ -> failwith "string-set!: not a char"
           end
       | _ -> failwith "string-set!: not an integer"
@@ -727,7 +728,7 @@ let string_to_list = function
       let len = String.length string in
       let rec loop i =
         if i >= len then Snil
-        else Scons {car = Char string.[i]; cdr = loop (i + 1)}
+        else Scons {car = Schar string.[i]; cdr = loop (i + 1)}
       in
       loop 0
   | _ -> failwith "string->list: not a string"
@@ -736,7 +737,7 @@ let list_to_string cons =
   let rec loop i cons =
     match cons with
     | Snil -> String.make i '\000'
-    | Scons {car = Char c; cdr = cons'} ->
+    | Scons {car = Schar c; cdr = cons'} ->
         let string = loop (i + 1) cons' in string.[i] <- c; string
     | _ -> failwith "list->string: not a list of chars"
   in
@@ -746,11 +747,11 @@ let string_copy = function
   | String string -> String (String.copy string)
   | _ -> failwith "string-copy: not a string"
 
-let string_fill string char =
+let string_fill string c =
   match string with
   | String string ->
-      begin match char with
-        Char char -> String.fill string 0 (String.length string) char; Void
+      begin match c with
+      | Schar c -> String.fill string 0 (String.length string) c; Void
       | _ -> failwith "string-fill!: not a char"
       end
   | _ -> failwith "string-fill!: not a string"
@@ -775,7 +776,7 @@ let current_output_port () = !current_out
 
 let with_input_from_file string thunk =
   match string with
-    String string ->
+  | String string ->
       let old_in = !current_in in
       let ch = open_in string in
       current_in := {ch = ch; peek = None};
@@ -810,16 +811,15 @@ let newline_to_port port =
     Out port -> output_char port '\n'; flush port; Void
   | _ -> failwith "newline: not a port"
 
-let write_char char =
-  match char with
-    Char char -> output_char !current_out char; Void
+let write_char = function
+  | Schar c -> output_char !current_out c; Void
   | _ -> failwith "write-char: not a char"
 
-let write_char_to_port char port =
-  match char with
-    Char char ->
+let write_char_to_port c port =
+  match c with
+  | Schar c ->
       begin match port with
-        Out port -> output_char port char; Void
+      | Out port -> output_char port c; Void
       | _ -> failwith "write-char: not a port"
       end
   | _ -> failwith "write-char: not a char"
@@ -827,7 +827,6 @@ let write_char_to_port char port =
 let error msg objs =
   failwith ("error: " ^ to_string msg ^ ": " ^ to_string objs)
 
-let force obj =
-  match obj with
-    Promise obj -> Lazy.force obj
+let force = function
+  | Spromise obj -> Lazy.force obj
   | _ -> failwith "force: not a promise"

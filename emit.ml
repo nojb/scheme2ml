@@ -12,7 +12,7 @@ type variable =
     mutable arity : int }
 
 type t =
-    Quote of datum
+  | Quote of datum
   | Reference of binding
   | Begin of t list
   | Lambda of bool * variable list * t
@@ -25,19 +25,17 @@ type t =
   | Time of t
 
 and binding =
-    Variable of variable
+  | Variable of variable
   | Builtin of (int * string) option * (int * string) list * string
   | Syntax of (int -> binding M.t -> datum list -> t)
 
-let binding_name =
-  function
-    Variable var -> var.name
+let binding_name = function
+  | Variable var -> var.name
   | Builtin (_, _, name) -> name
   | _ -> failwith "binding_name"
 
-let binding_mutable =
-  function
-    Variable var -> var.mut
+let binding_mutable = function
+  | Variable var -> var.mut
   | Syntax _ | Builtin (_, _, _) -> false
 
 let emit_lit ppf x =
@@ -64,8 +62,8 @@ let rec emit ppf = function
   | Reference binding -> emit_reference ppf binding
   | Application (f, args) -> emit_application ppf f args
   | Begin [] -> fprintf ppf "Scheme.Void"
-  | Begin [l] -> emit ppf l
-  | Begin ls -> emit_begin ppf ls
+  | Begin [x] -> emit ppf x
+  | Begin xs -> emit_begin ppf xs
   | Set (var, exp) ->
       fprintf ppf "(%s := %a; Scheme.Void)" var.name emit exp
   | Let ([], [], body) -> emit ppf body
@@ -74,14 +72,14 @@ let rec emit ppf = function
   | If (cond, iftrue, iffalse) -> emit_if ppf cond iftrue iffalse
   | Case (key, clause, elseclause) -> emit_case ppf key clause elseclause
   | Delay promise ->
-      fprintf ppf "(Scheme.Promise (lazy %a))" emit promise
+      fprintf ppf "(Scheme.Spromise (lazy %a))" emit promise
   | Time e -> emit_time ppf e
 
 and emit_quote ppf = function
   | Dint n -> fprintf ppf "(Scheme.Snum (Num.Int %d))" n
   | Dbool true -> fprintf ppf "Scheme.Strue"
   | Dbool false -> fprintf ppf "Scheme.Sfalse"
-  | Dchar c -> fprintf ppf "(Scheme.Char %C)" c
+  | Dchar c -> fprintf ppf "(Scheme.Schar %C)" c
   | Dstring s -> fprintf ppf "(Scheme.String %S)" s
   | Dlist xs ->
       let rec loop ppf = function
