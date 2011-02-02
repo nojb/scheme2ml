@@ -53,7 +53,7 @@ let rec emit_separated sep f ppf x =
   | [] -> ()
   | [a] -> f ppf a
   | a :: b ->
-      fprintf ppf "%a %s %a" f a sep (emit_separated sep f) b
+      fprintf ppf "%a%s%a" f a sep (emit_separated sep f) b
 
 let emit_alt pp x y ppf b =
   if b then pp ppf x else pp ppf y

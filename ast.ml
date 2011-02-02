@@ -1,4 +1,6 @@
-module M = Emit.M (* Map.Make String; *)
+open Datum
+
+module M = Map.Make (String)
 
 (* mangle : string -> string
  * 
@@ -115,51 +117,38 @@ let rec map_to_list f cons =
  * otherwise, we just take the corresponding scheme expression and tack
  * it in at the end of the sequence. *)
 
-let parse_define x =
-  match x with
-    Scheme.Scons {Scheme.car = Scheme.Symbol "define"; Scheme.cdr = a} ->
-      begin match a with
-        Scheme.Scons
-          {Scheme.car = Scheme.Symbol _ as a;
-           Scheme.cdr =
-             Scheme.Scons {Scheme.car = e; Scheme.cdr = Scheme.Snil}} ->
-          Some (a, e)
-      | Scheme.Scons
-          {Scheme.car =
-             Scheme.Scons
-               {Scheme.car = Scheme.Symbol _ as a; Scheme.cdr = args};
-           Scheme.cdr = body} ->
-          Some
-            (a,
-             Scheme.Scons
-               {Scheme.car = Scheme.Symbol "lambda";
-                Scheme.cdr =
-                  Scheme.Scons {Scheme.car = args; Scheme.cdr = body}})
-      | _ -> failwith "bad syntax in (define)"
-      end
+let parse_define = function
+  | Dlist ((Dsym "define") :: (Dsym _ as a) :: e :: []) ->
+      Some (a, e)
+  | Dlist ((Dsym "define") :: (Dlist (Dsym _ as a :: args)) :: body) ->
+      Some (a, Dlist (Dsym "lambda" :: Dlist args :: body))
+  | Dlist ((Dsym "define") :: _) ->
+      failwith "bad syntax in (define)"
   | _ -> None
 
-type d =
+(* type d =
     Def of (Scheme.t * Scheme.t) list
-  | Oth of Scheme.t
+  | Oth of Scheme.t *)
+
+type d =
+  | Def of (datum * datum) list
+  | Oth of datum
 
 let rec analyze_program x =
   (* returns (defines, rest) *)
   let loop x =
-    let rec extract_defines found x =
-      match x with
-        [] -> found
+    let rec extract_defines found = function
+      | [] -> found
       | a :: b ->
           match parse_define a with
-            None -> extract_defines (Oth a :: found) b
+          | None -> extract_defines (Oth a :: found) b
           | Some z ->
-              let rec loop zs x =
+              let rec loop zs = function
                 (* zs is reversed *)
-                match x with
-                  [] -> Def zs :: found
+                | [] -> Def zs :: found
                 | a :: b ->
                     match parse_define a with
-                      None -> extract_defines (Oth a :: Def zs :: found) b
+                    | None -> extract_defines (Oth a :: Def zs :: found) b
                     | Some z' -> loop (z' :: zs) b
               in
               loop [z] b
@@ -170,6 +159,11 @@ let rec analyze_program x =
       let bindings =
         List.fold_left
           (fun rest (n, e) ->
+            (* bindings + body *)
+            Dlist (n :: e :: []) :: rest)
+          [] zs
+        (* List.fold_left
+          (fun rest (n, e) ->
              (* bindings + body *)
              Scheme.Scons
                {Scheme.car =
@@ -178,26 +172,24 @@ let rec analyze_program x =
                     Scheme.cdr =
                       Scheme.Scons {Scheme.car = e; Scheme.cdr = Scheme.Snil}};
                 Scheme.cdr = rest})
-          Scheme.Snil zs
+          Scheme.Snil zs*)
       in
-      Scheme.Scons
+      [Dlist (Dsym "letrec" :: Dlist bindings :: rest)]
+      (* Scheme.Scons
         {Scheme.car =
           Scheme.Scons
             {Scheme.car = Scheme.Symbol "letrec";
              Scheme.cdr =
                Scheme.Scons {Scheme.car = bindings; Scheme.cdr = rest}};
-         Scheme.cdr = Scheme.Snil}
+         Scheme.cdr = Scheme.Snil} *)
     in
     List.fold_left
       (fun rest def ->
          match def with
-           Def zs -> create_letrec zs rest
-         | Oth z -> Scheme.Scons {Scheme.car = z; Scheme.cdr = rest})
-      Scheme.Snil defs
+         | Def zs -> create_letrec zs rest
+         | Oth z -> z :: rest) [] defs
   in
-  let x' =
-    Scheme.Scons {Scheme.car = Scheme.Symbol "begin"; Scheme.cdr = loop x}
-  in
+  let x' = Dlist (Dsym "begin" :: loop x) in
   let syntax_forms =
     ["begin", analyze_begin; "lambda", analyze_lambda;
      (*  ("define", analyze_define); *)
@@ -218,8 +210,9 @@ let rec analyze_program x =
     List.fold_left (fun env (name, impl) -> M.add name (Emit.Syntax impl) env)
       env syntax_forms
   in
-  (* Printf.eprintf "DEBUG:\n%s\n%!" (Scheme.to_string x'); *)
-  analyze 0 env x'
+  Printf.eprintf "DEBUG:\n%a\n%!" pp_datum x';
+  Emit.Quote Scheme.Snil
+  (* analyze 0 env x' *)
 
 and analyze qq env x =
   match x with

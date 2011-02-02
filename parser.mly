@@ -1,4 +1,5 @@
 %{
+  open Datum
 %}
 
 %token LP RP EOF DOT QUOTE
@@ -9,8 +10,8 @@
 %token <char> CHAR
 %token <string> STRING
 
-%type <Scheme.t list> program
-%type <Scheme.t> ast
+%type <Datum.datum list> program
+%type <Datum.datum> ast
 %start ast
 %start program
 
@@ -18,97 +19,34 @@
 
 program:
   lst = list(ast) EOF
-  {
-    lst
-  }
+  { lst }
   ;
 
 ast:
   NAME
-  {
-    Scheme.Symbol (String.lowercase $1)
-  }
+  { Dsym (String.lowercase $1) }
   | TRUE
-  {
-    Scheme.Strue
-  }
+  { Dbool true }
   | FALSE
-  {
-    Scheme.Sfalse
-  }
+  { Dbool false }
   | CHAR
-  {
-    Scheme.Char $1
-  }
+  { Dchar $1 }
   | STRING
-  {
-    Scheme.String $1
-  }
+  { Dstring $1 }
   | INT
-  {
-    Scheme.Snum (Num.Int $1)
-  }
+  { Dint $1 }
   | QUOTE ast
-  {
-    Scheme.Scons {
-      Scheme.car = Scheme.Symbol "quote";
-      Scheme.cdr = Scheme.Scons {
-        Scheme.car = $2;
-        Scheme.cdr = Scheme.Snil
-      }
-    }
-  }
+  { Dlist [Dsym "quote"; $2] }
   | QUASIQUOTE ast
-  {
-    Scheme.Scons {
-      Scheme.car = Scheme.Symbol "quasiquote";
-      Scheme.cdr = Scheme.Scons {
-        Scheme.car = $2;
-        Scheme.cdr = Scheme.Snil
-      }
-    }
-  }
+  { Dlist [Dsym "quasiquote"; $2] }
   | UNQUOTE ast
-  {
-    Scheme.Scons {
-      Scheme.car = Scheme.Symbol "unquote";
-      Scheme.cdr = Scheme.Scons {
-        Scheme.car = $2;
-        Scheme.cdr = Scheme.Snil
-      }
-    }
-  }
+  { Dlist [Dsym "unquote"; $2] }
   | UNQUOTE_SPLICING ast
-  {
-    Scheme.Scons {
-      Scheme.car = Scheme.Symbol "unquote-splicing";
-      Scheme.cdr = Scheme.Scons {
-        Scheme.car = $2;
-        Scheme.cdr = Scheme.Snil
-      }
-    }
-  }
+  { Dlist [Dsym "unquote-splicing"; $2] }
   | SHARP_LP lst = list(ast) RP
-  {
-    Scheme.Vector (Array.of_list lst)
-  }
-  | LP cons RP
-  {
-    $2
-  }
-  ;
-
-cons:
-  (* nothing *)
-  {
-    Scheme.Snil
-  }
-  | ast cons
-  {
-    Scheme.Scons { Scheme.car = $1; Scheme.cdr = $2 }
-  }
-  | DOT ast
-  {
-    $2
-  }
+  { Dvec lst }
+  | LP xs = list(ast) RP
+  { Dlist xs }
+  | LP xs = list(ast) DOT x = ast RP
+  { Ddot (xs, x) }
   ;
