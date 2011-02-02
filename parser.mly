@@ -30,11 +30,11 @@ ast:
   }
   | TRUE
   {
-    Scheme.Boolean true
+    Scheme.Strue
   }
   | FALSE
   {
-    Scheme.Boolean false
+    Scheme.Sfalse
   }
   | CHAR
   {
@@ -46,45 +46,45 @@ ast:
   }
   | INT
   {
-    Scheme.Int $1
+    Scheme.Snum (Num.Int $1)
   }
   | QUOTE ast
   {
-    Scheme.Cons {
+    Scheme.Scons {
       Scheme.car = Scheme.Symbol "quote";
-      Scheme.cdr = Scheme.Cons {
+      Scheme.cdr = Scheme.Scons {
         Scheme.car = $2;
-        Scheme.cdr = Scheme.Nil
+        Scheme.cdr = Scheme.Snil
       }
     }
   }
   | QUASIQUOTE ast
   {
-    Scheme.Cons {
+    Scheme.Scons {
       Scheme.car = Scheme.Symbol "quasiquote";
-      Scheme.cdr = Scheme.Cons {
+      Scheme.cdr = Scheme.Scons {
         Scheme.car = $2;
-        Scheme.cdr = Scheme.Nil
+        Scheme.cdr = Scheme.Snil
       }
     }
   }
   | UNQUOTE ast
   {
-    Scheme.Cons {
+    Scheme.Scons {
       Scheme.car = Scheme.Symbol "unquote";
-      Scheme.cdr = Scheme.Cons {
+      Scheme.cdr = Scheme.Scons {
         Scheme.car = $2;
-        Scheme.cdr = Scheme.Nil
+        Scheme.cdr = Scheme.Snil
       }
     }
   }
   | UNQUOTE_SPLICING ast
   {
-    Scheme.Cons {
+    Scheme.Scons {
       Scheme.car = Scheme.Symbol "unquote-splicing";
-      Scheme.cdr = Scheme.Cons {
+      Scheme.cdr = Scheme.Scons {
         Scheme.car = $2;
-        Scheme.cdr = Scheme.Nil
+        Scheme.cdr = Scheme.Snil
       }
     }
   }
@@ -101,11 +101,11 @@ ast:
 cons:
   (* nothing *)
   {
-    Scheme.Nil
+    Scheme.Snil
   }
   | ast cons
   {
-    Scheme.Cons { Scheme.car = $1; Scheme.cdr = $2 }
+    Scheme.Scons { Scheme.car = $1; Scheme.cdr = $2 }
   }
   | DOT ast
   {

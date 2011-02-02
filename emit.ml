@@ -57,9 +57,9 @@ let rec emit x =
   | Begin [l] -> emit l
   | Begin ls -> emit_begin ls
   | Set (var, exp) ->
-      Printf.printf "(do { %s.val := " var.name;
+      Printf.printf "(%s.val := " var.name;
       emit exp;
-      Printf.printf " ; Scheme.Void })"
+      Printf.printf " ; Scheme.Void)"
   | Let ([], [], body) -> emit body
   | Let (variables, inits, body) -> emit_let variables inits body
   | Lambda (varargs, args, body) -> emit_lambda varargs args body
@@ -68,13 +68,13 @@ let rec emit x =
   | Delay promise ->
       Printf.printf "(Scheme.Promise (lazy "; emit promise; Printf.printf "))"
   | Time e -> emit_time e
-and emit_quote =
-  function
-    Scheme.Int n -> Printf.printf "(Scheme.Int %d)" n
+
+and emit_quote = function
+  | Scheme.Snum n -> Printf.printf "(Scheme.Snum (Num.Int %s))" (Num.string_of_num n)
   | Scheme.Char char -> Printf.printf "(Scheme.Char '%c')" char
   | Scheme.String string -> Printf.printf "(Scheme.String \"%s\")" string
-  | Scheme.Cons cons ->
-      Printf.printf "(Scheme.Cons { Scheme.car = ";
+  | Scheme.Scons cons ->
+      Printf.printf "(Scheme.Scons { Scheme.car = ";
       emit_quote cons.Scheme.car;
       Printf.printf "; Scheme.cdr = ";
       emit_quote cons.Scheme.cdr;
@@ -89,25 +89,26 @@ and emit_quote =
         else begin emit_quote vector.(i); Printf.printf "; " end
       done
   | Scheme.Symbol s -> Printf.printf "(Scheme.intern \"%s\")" s
-  | Scheme.Nil -> Printf.printf "Scheme.Nil"
-  | Scheme.Boolean true -> Printf.printf "Scheme.t"
-  | Scheme.Boolean false -> Printf.printf "Scheme.f"
+  | Scheme.Snil -> Printf.printf "Scheme.Snil"
+  | Scheme.Strue -> Printf.printf "Scheme.Strue"
+  | Scheme.Sfalse -> Printf.printf "Scheme.Sfalse"
   | Scheme.Void -> Printf.printf "Scheme.Void"
   | Scheme.In _ | Scheme.Out _ | Scheme.Promise _ | Scheme.Lambda _ |
     Scheme.Lambda0 _ | Scheme.Lambda1 _ | Scheme.Lambda2 _ |
     Scheme.Lambda3 _ | Scheme.Lambda4 _ ->
       failwith "Emit.emit_quote"
+
 and emit_begin ls =
-  Printf.printf "(do { ";
+  Printf.printf "(";
   let rec loop ls =
     match ls with
       [] -> Printf.printf "Scheme.Void"
     | [a] -> emit a
     | a :: b -> Printf.printf "ignore ("; emit a; Printf.printf "); "; loop b
   in
-  loop ls; Printf.printf "})"
+  loop ls; Printf.printf ")"
 and emit_if cond iftrue iffalse =
-  Printf.printf "(if (Scheme.is_true ";
+  Printf.printf "(if (Scheme.Strue == ";
   emit cond;
   Printf.printf ") then ";
   emit iftrue;
