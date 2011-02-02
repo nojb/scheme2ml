@@ -43,7 +43,7 @@ let new_var_no_mangle name clos arity =
   {Emit.name = name; Emit.mut = false; Emit.referenced = false;
    Emit.closure = clos; Emit.varargs = false; Emit.arity = arity}
 
-exception NotAList
+(* exception NotAList
 
 let rec iter_cons f cons =
   match cons with
@@ -86,7 +86,7 @@ let rec map_to_list f cons =
   match cons with
     Scheme.Snil -> []
   | Scheme.Scons cons -> f cons.Scheme.car :: map_to_list f cons.Scheme.cdr
-  | _ -> raise NotAList
+  | _ -> raise NotAList*)
 
 (* analyze_program : Emit.binding M.t -> Scheme.t -> Emit.t
  *
@@ -181,9 +181,9 @@ let rec analyze_program x =
       (* "quasiquote", analyze_quasiquote;*)
       "if", analyze_alternative;
       (*"let", analyze_let;
-      "let*", analyze_let_star;
+      "let*", analyze_let_star;*)
       "letrec", analyze_letrec;
-      "cond", analyze_cond;*)
+      (*"cond", analyze_cond;*)
       "and", analyze_and;
       "or", analyze_or;
       (*"case", analyze_case;
@@ -235,8 +235,7 @@ and analyze_cons qq env x xs =
       Emit.Application (analyze qq env x, List.map (analyze qq env) xs)
 
 and analyze_begin qq env xs =
-  try Emit.Begin (List.map (analyze qq env) xs)
-  with NotAList -> failwith "bad syntax in (begin)"
+  Emit.Begin (List.map (analyze qq env) xs)
 
 and analyze_quote qq env = function
   | a :: [] -> Emit.Quote a
@@ -296,33 +295,21 @@ and analyze_let_star qq env cdr =
       in
       analyze_let qq env (loop bindings)
   | _ -> failwith "bad syntax in (let\*\)"
+  *)
 
-and analyze_letrec qq env cdr =
-  match cdr with
-    Scheme.Scons {Scheme.car = bindings; Scheme.cdr = body} ->
-      let rec loop bindings =
-        match bindings with
-          Scheme.Snil -> []
-        | Scheme.Scons {Scheme.car = binding1; Scheme.cdr = bindings} ->
-            begin match binding1 with
-              Scheme.Scons
-                {Scheme.car = Scheme.Symbol variable1;
-                 Scheme.cdr =
-                   Scheme.Scons
-                     {Scheme.car = init1; Scheme.cdr = Scheme.Snil}} ->
-                (variable1, init1) :: loop bindings
-            | _ -> failwith "bad syntax in (letrec)"
-            end
-        | _ -> failwith "bad syntax in (letrec)"
-      in
-      let (variables, inits) = List.split (loop bindings) in
+and analyze_letrec qq env = function
+  | Dlist bindings :: body ->
+      let variables, inits = List.split
+        (List.map
+          (function
+            | Dlist [Dsym variable1; init1] -> (variable1, init1)
+            | _ -> failwith "bad syntax in (letrec)") bindings) in
       let variables' = List.map new_var variables in
       let env' =
         List.fold_left2
           (fun env variable variable' ->
-             M.add variable (Emit.Variable variable') env)
-          env variables variables'
-      in
+            M.add variable (Emit.Variable variable') env)
+          env variables variables' in
       let inits' = List.map (analyze qq env') inits in
       List.iter2
         (fun var' init ->
@@ -336,6 +323,7 @@ and analyze_letrec qq env cdr =
       Emit.Let (variables', inits', analyze_body qq env' body)
   | _ -> failwith "bad syntax in (letrec)"
 
+(*
 and analyze_let qq env cdr =
   match cdr with
     Scheme.Scons
