@@ -43,51 +43,6 @@ let new_var_no_mangle name clos arity =
   {Emit.name = name; Emit.mut = false; Emit.referenced = false;
    Emit.closure = clos; Emit.varargs = false; Emit.arity = arity}
 
-(* exception NotAList
-
-let rec iter_cons f cons =
-  match cons with
-    Scheme.Scons {Scheme.car = a; Scheme.cdr = b} -> f a; iter_cons f b
-  | Scheme.Snil -> ()
-  | _ -> raise NotAList
-
-let rec fold_left_cons f z cons =
-  match cons with
-    Scheme.Snil -> z
-  | Scheme.Scons {Scheme.car = a; Scheme.cdr = b} -> fold_left_cons f (f z a) b
-  | _ -> raise NotAList
-
-let rec fold_last_cons f f_last f_nil z cons =
-  match cons with
-    Scheme.Scons {Scheme.car = a; Scheme.cdr = Scheme.Snil} -> f_last z a
-  | Scheme.Scons {Scheme.car = a; Scheme.cdr = b} ->
-      fold_last_cons f f_last f_nil (f z a) b
-  | Scheme.Snil -> f_nil
-  | _ -> raise NotAList
-
-let rec fold_right_cons f cons z =
-  match cons with
-    Scheme.Snil -> z
-  | Scheme.Scons {Scheme.car = a; Scheme.cdr = Scheme.Snil} -> f a z
-  | Scheme.Scons {Scheme.car = a; Scheme.cdr = b} ->
-      f a (fold_right_cons f b z)
-  | _ -> raise NotAList
-
-let rec cons_append cons1 cons2 =
-  match cons1 with
-    Scheme.Scons {Scheme.car = a; Scheme.cdr = Scheme.Snil} ->
-      Scheme.Scons {Scheme.car = a; Scheme.cdr = cons2}
-  | Scheme.Snil -> cons2
-  | Scheme.Scons {Scheme.car = a; Scheme.cdr = b} ->
-      Scheme.Scons {Scheme.car = a; Scheme.cdr = cons_append b cons2}
-  | _ -> invalid_arg "cons_append"
-
-let rec map_to_list f cons =
-  match cons with
-    Scheme.Snil -> []
-  | Scheme.Scons cons -> f cons.Scheme.car :: map_to_list f cons.Scheme.cdr
-  | _ -> raise NotAList*)
-
 (* analyze_program : Emit.binding M.t -> Scheme.t -> Emit.t
  *
  * This is the entry to the syntax analysis phase of the compiler.
@@ -180,8 +135,8 @@ let rec analyze_program x =
       "quote", analyze_quote;
       (* "quasiquote", analyze_quasiquote;*)
       "if", analyze_alternative;
-      (*"let", analyze_let;
-      "let*", analyze_let_star;*)
+      "let", analyze_let;
+      (* "let*", analyze_let_star;*)
       "letrec", analyze_letrec;
       (*"cond", analyze_cond;*)
       "and", analyze_and;
@@ -323,68 +278,27 @@ and analyze_letrec qq env = function
       Emit.Let (variables', inits', analyze_body qq env' body)
   | _ -> failwith "bad syntax in (letrec)"
 
-(*
-and analyze_let qq env cdr =
-  match cdr with
-    Scheme.Scons
-      {Scheme.car = Scheme.Symbol _ as v;
-       Scheme.cdr = Scheme.Scons {Scheme.car = bindings; Scheme.cdr = body}} ->
-      let help binding (names, values) =
-        match binding with
-          Scheme.Scons
-            {Scheme.car = Scheme.Symbol _ as v;
-             Scheme.cdr =
-               Scheme.Scons {Scheme.car = e; Scheme.cdr = Scheme.Snil}} ->
-            Scheme.Scons {Scheme.car = v; Scheme.cdr = names},
-            Scheme.Scons {Scheme.car = e; Scheme.cdr = values}
-        | _ -> failwith "bad syntax in (let)"
-      in
-      let (binding_names, binding_values) =
-        fold_right_cons help bindings (Scheme.Snil, Scheme.Snil)
-      in
+and analyze_let qq env = function
+  | (Dsym _ as v) :: Dlist bindings :: body -> (* named let *)
+      let binding_names, binding_values =
+        List.fold_right
+          (fun binding (names, values) ->
+            match binding with
+            | Dlist [Dsym _ as v; e] -> v :: names, e :: values
+            | _ -> failwith "bad syntax in (let)")
+          bindings ([], []) in
       analyze_letrec qq env
-        (Scheme.Scons
-           {Scheme.car =
-             Scheme.Scons
-               {Scheme.car =
-                 Scheme.Scons
-                   {Scheme.car = v;
-                    Scheme.cdr =
-                      Scheme.Scons
-                        {Scheme.car =
-                          Scheme.Scons
-                            {Scheme.car = Scheme.Symbol "lambda";
-                             Scheme.cdr =
-                               Scheme.Scons
-                                 {Scheme.car = binding_names;
-                                  Scheme.cdr = body}};
-                         Scheme.cdr = Scheme.Snil}};
-                Scheme.cdr = Scheme.Snil};
-            Scheme.cdr =
-              Scheme.Scons
-                {Scheme.car =
-                  Scheme.Scons
-                    {Scheme.car = Scheme.Symbol "loop";
-                     Scheme.cdr = binding_values};
-                 Scheme.cdr = Scheme.Snil}})
-  | Scheme.Scons {Scheme.car = bindings; Scheme.cdr = body} ->
-      (* bindings : list (string * Emit.t) *)
-      let rec loop bindings =
-        match bindings with
-          Scheme.Snil -> []
-        | Scheme.Scons {Scheme.car = binding1; Scheme.cdr = bindings} ->
-            begin match binding1 with
-              Scheme.Scons
-                {Scheme.car = Scheme.Symbol variable1;
-                 Scheme.cdr =
-                   Scheme.Scons
-                     {Scheme.car = init1; Scheme.cdr = Scheme.Snil}} ->
-                (variable1, analyze qq env init1) :: loop bindings
-            | _ -> failwith "bad syntax in (let)"
-            end
-        | _ -> failwith "bad syntax in (let)"
-      in
-      let (variables, inits) = List.split (loop bindings) in
+        [Dlist
+          [Dlist
+            [v; Dlist (Dsym "lambda" :: Dlist binding_names :: body)]];
+            Dlist (v :: binding_values)]
+  | Dlist bindings :: body ->
+      let variables, inits =
+        List.split
+          (List.map
+            (function
+              | Dlist [Dsym variable1; init1] -> (variable1, analyze qq env init1)
+              | _ -> failwith "bad syntax in (let)") bindings) in
       let variables' = List.map new_var variables in
       let env' =
         List.fold_left2
@@ -394,7 +308,6 @@ and analyze_let qq env cdr =
       in
       Emit.Let (variables', inits, analyze_body qq env' body)
   | _ -> failwith "bad syntax in (let)"
-*)
 
 and analyze_set qq env = function
   | Dsym name :: exp :: [] ->
