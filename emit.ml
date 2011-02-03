@@ -3,17 +3,18 @@ open Datum
 
 module M = Map.Make (String)
 
-type variable =
-  { name : string;
-    mutable mut : bool;
-    mutable referenced : bool;
-    mutable closure : bool;
-    mutable varargs : bool;
-    mutable arity : int }
+type pexp =
+  | Pquote of datum
+  | Pvar of string
+  | Passign of string * pexp
+  | Papp of pexp * pexp list
+  | Pif of pexp * pexp * pexp
+  | Plambda of string list * pexp
+  | PlambdaVar of string list * string * pexp
+  | Plet of (string * pexp) list * pexp
+  | Pbegin of pexp list
 
-type t =
-  | Quote of datum
-  | Reference of binding
+  (*| Reference of binding
   | Begin of t list
   | Lambda of bool * variable list * t
   | If of t * t * t
@@ -22,21 +23,16 @@ type t =
   | Application of t * t list
   | Case of t * (Scheme.t list * t) list * t
   | Delay of t
-  | Time of t
+  | Time of t*)
 
-and binding =
-  | Variable of variable
-  | Builtin of (int * string) option * (int * string) list * string
-  | Syntax of (int -> binding M.t -> datum list -> t)
-
-let binding_name = function
+(* let binding_name = function
   | Variable var -> var.name
   | Builtin (_, _, name) -> name
   | _ -> failwith "binding_name"
 
 let binding_mutable = function
   | Variable var -> var.mut
-  | Syntax _ | Builtin (_, _, _) -> false
+  | Syntax _ | Builtin (_, _, _) -> false *)
 
 let emit_lit ppf x =
   fprintf ppf "%s" x

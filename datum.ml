@@ -1,14 +1,5 @@
-type datum =
-  | Dint of int
-  | Dbool of bool
-  | Dchar of char
-  | Dstring of string
-  | Dlist of datum list
-  | Ddot of datum list * datum
-  | Dsym of string
-  | Dvec of datum list
-
 open Printf
+open Types
 
 let rec pp_sep sep pp ppf = function
   | [] -> ()
@@ -25,3 +16,4 @@ let rec pp_datum ppf = function
   | Ddot (xs, x) -> fprintf ppf "(%a . %a)" (pp_sep " " pp_datum) xs pp_datum x
   | Dsym s -> fprintf ppf "%s" s
   | Dvec xs -> fprintf ppf "#(%a)" (pp_sep " " pp_datum) xs
+  | Dunspec -> fprintf ppf "<unspecified>"

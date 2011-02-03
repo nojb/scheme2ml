@@ -1,197 +1,81 @@
+open Types
 open Datum
 
 module M = Map.Make (String)
 
-(* mangle : string -> string
- * 
- * This function comes up with new names for the
- * Scheme variables, since the naming rules for Ocaml
- * are more stringent. It looks at each char in turn.
- * If it is an alphabetic or numeric character, it
- * is left alone. Otherwise, it is replaced by the
- * string "__C", where C is the ascii code of the
- * character in question. Finally we prepend the
- * string "__" at the beginning (This takes care for
- * example of the Scheme identifiers that start with
- * uppercase, something forbidden in Ocaml) *)
+type binding =
+  | Tmacro of binding M.t * (binding M.t -> datum list -> datum)
+  | Tspecial of (binding M.t -> datum list -> pexp)
+  | Tfree
+  | Tother
 
-let mangle_count = ref 0
-
-let mangle s =
-  let count = !mangle_count in
-  mangle_count := !mangle_count + 1;
-  let alphanumeric c =
-    c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
-  in
-  let string_to_list s =
-    let l = String.length s in
-    let rec loop i = if i >= l then [] else s.[i] :: loop (i + 1) in loop 0
-  in
-  let mangle_char c =
-    if alphanumeric c then String.make 1 c
-    else "_" ^ string_of_int (Char.code c)
-  in
-  String.concat ""
-    (("_" ^ string_of_int count ^ "_") ::
-     List.map mangle_char (string_to_list s))
-
-let new_var name =
-  {Emit.name = mangle name; Emit.mut = false; Emit.referenced = false;
-   Emit.closure = false; Emit.varargs = false; Emit.arity = 0}
-
-let new_var_no_mangle name clos arity =
-  {Emit.name = name; Emit.mut = false; Emit.referenced = false;
-   Emit.closure = clos; Emit.varargs = false; Emit.arity = arity}
-
-(* analyze_program : Emit.binding M.t -> Scheme.t -> Emit.t
- *
- * This is the entry to the syntax analysis phase of the compiler.
- * We want to leave as much work as possible to the Ocaml compiler,
- * so we take the sequence of top-level declarations and commands
- * and we make them into one big (begin ...) form. The only tricky
- * point is how do we deal with (define ...) forms. Here is an
- * example:
- *   
- *   (define x (lambda () 3))
- *   (display (x))
- *
- * should be translated into
- *
- *   (begin
- *     (letrec ((x (lambda () 3)))
- *        (display (x))))
- *
- * (the letrec is necessary in case the definitions contain recursive
- * functions).
- *
- * When detecting (define ...) forms, there are two cases:
- *    
- *    (define x ...)
- *    (define (x ...) ...)
- *
- * otherwise, we just take the corresponding scheme expression and tack
- * it in at the end of the sequence. *)
-
-let parse_define = function
-  | Dlist ((Dsym "define") :: (Dsym _ as a) :: e :: []) ->
-      Some (a, e)
-  | Dlist ((Dsym "define") :: (Dlist (Dsym _ as a :: args)) :: body) ->
-      Some (a, Dlist (Dsym "lambda" :: Dlist args :: body))
-  | Dlist ((Dsym "define") :: _) ->
-      failwith "bad syntax in (define)"
-  | _ -> None
-
-type d =
-  | Def of (datum * datum) list
-  | Oth of datum
+let find x env =
+  try M.find x env
+  with Not_found -> Tfree
 
 let rec analyze_program x =
-  (* returns (defines, rest) *)
-  let loop x =
-    let rec extract_defines found = function
-      | [] -> found
-      | a :: b ->
-          match parse_define a with
-          | None -> extract_defines (Oth a :: found) b
-          | Some z ->
-              let rec loop zs = function
-                (* zs is reversed *)
-                | [] -> Def zs :: found
-                | a :: b ->
-                    match parse_define a with
-                    | None -> extract_defines (Oth a :: Def zs :: found) b
-                    | Some z' -> loop (z' :: zs) b
-              in
-              loop [z] b
-    in
-    let defs = extract_defines [] x in
-    (* reversed *)
-    let create_letrec zs rest =
-      let bindings =
-        List.fold_left
-          (fun rest (n, e) ->
-            (* bindings + body *)
-            Dlist (n :: e :: []) :: rest)
-          [] zs
-      in
-      [Dlist (Dsym "letrec" :: Dlist bindings :: rest)]
-    in
-    List.fold_left
-      (fun rest def ->
-         match def with
-         | Def zs -> create_letrec zs rest
-         | Oth z -> z :: rest) [] defs
-  in
-  let x' = Dlist (Dsym "begin" :: loop x) in
   let syntax_forms =
     [ "begin", analyze_begin;
       "lambda", analyze_lambda;
       (* ("define", analyze_define); *)
       "set!", analyze_set;
+      "let-syntax", analyze_let_syntax;
       "quote", analyze_quote;
       (* "quasiquote", analyze_quasiquote;*)
       "if", analyze_alternative;
-      "let", analyze_let;
-      "let*", analyze_let_star;
-      "letrec", analyze_letrec;
-      (*"cond", analyze_cond;*)
-      "and", analyze_and;
-      "or", analyze_or;
-      (*"case", analyze_case;*)
-      "delay", analyze_delay;
-      (*"do", analyze_do; *)
-      "time", analyze_time ]
-  in
-  let env =
-    List.fold_left
-      (fun env (name, varargs, impls) ->
-         M.add name (Emit.Builtin (varargs, impls, name)) env)
-      M.empty Builtins.builtins
-  in
-  let env =
-    List.fold_left (fun env (name, impl) -> M.add name (Emit.Syntax impl) env)
-      env syntax_forms
-  in
-  Printf.eprintf "DEBUG:\n%a\n%!" pp_datum x';
-  analyze 0 env x'
+      (* "let", analyze_let; *)
+      (* "let*", analyze_let_star; *)
+      (* "letrec", analyze_letrec; *)
+      (* "cond", analyze_cond; *)
+      (* "and", analyze_and; *)
+      (* "or", analyze_or; *)
+      (* "case", analyze_case;*)
+      (* "delay", analyze_delay; *)
+      (* "do", analyze_do; *)
+      (* "time", analyze_time *) ] in
+  let env = List.fold_left
+    (fun env (name, impl) -> M.add name (Tspecial impl) env) M.empty syntax_forms in
+  analyze env x
 
-and analyze qq env x =
+and analyze env x =
   match x with
-  | Dint _ | Dbool _ | Dchar _ | Dstring _
-  | Dlist [] | Dvec _ -> Emit.Quote x
+  | Dint _
+  | Dbool _
+  | Dchar _
+  | Dstring _
+  | Dlist []
+  | Dvec _ -> Pquote x
   | Dsym s ->
-      begin try
-        match M.find s env with
-        | Emit.Variable var as v ->
-            var.Emit.referenced <- true; Emit.Reference v
-        | _ as v -> Emit.Reference v
-      with Not_found -> failwith ("unknown identifier: " ^ s) end
-  | Dlist (x :: xs) -> analyze_cons qq env x xs
-  | Ddot _ -> failwith "bad syntax"
-
-and analyze_cons qq env x xs =
-  match x with
-  | Dsym s ->
-      begin try
-        match M.find s env with
-        | Emit.Syntax syn -> syn qq env xs
-        | _ as v ->
-            Emit.Application
-              (Emit.Reference v, List.map (analyze qq env) xs)
-      with Not_found -> failwith ("unknown identifier: " ^ s)
+      begin match find s env with
+        | Tfree
+        | Tother -> Pvar s
+        | Tspecial _ -> failwith "can't reference a syntax object"
+        | Tmacro _ -> failwith "can't reference a macro object"
       end
-  | _ ->
-      Emit.Application (analyze qq env x, List.map (analyze qq env) xs)
+  | Dlist (x :: xs) -> analyze_cons env x xs
+  | Ddot _ -> failwith "bad syntax"
+  | Dunspec -> assert false
 
-and analyze_begin qq env xs =
-  Emit.Begin (List.map (analyze qq env) xs)
+and analyze_cons env x xs =
+  match x with
+  | Dsym x ->
+      begin match find x env with
+      | Tspecial syn -> syn env xs
+      | Tmacro _ -> assert false
+      | Tfree
+      | Tother -> Papp (Pvar x, List.map (analyze env) xs)
+      end
+  | _ -> Papp (analyze env x, List.map (analyze env) xs)
 
-and analyze_quote qq env = function
-  | a :: [] -> Emit.Quote a
+and analyze_begin env xs =
+  Pbegin (List.map (analyze env) xs)
+
+and analyze_quote env = function
+  | a :: [] -> Pquote a
   | _ -> failwith "bad syntax in (quote)"
 
-and analyze_body qq env xs =
-  let rec loop = function
+and analyze_body env xs =
+  (* let rec loop = function
     | Dlist (Dsym "define" :: a :: b) :: xs ->
         begin match a with
         | Dlist (Dsym _ as name :: args) ->
@@ -217,17 +101,17 @@ and analyze_body qq env xs =
   in
   let x, xs = loop xs in
   match x with
-  | [] -> Emit.Begin (List.map (analyze qq env) xs)
-  | _ ->
-      analyze qq env (Dlist (Dsym "letrec" :: Dlist x :: xs))
+  | [] -> Pbegin (List.map (analyze qq env) xs)
+  | _ -> analyze qq env (Dlist (Dsym "letrec" :: Dlist x :: xs)) *)
+  Pbegin (List.map (analyze env) xs)
 
-and analyze_let_star qq env = function
+(* and analyze_let_star qq env = function
   | Dlist bindings :: body ->
       analyze_let qq env (List.fold_right
         (fun binding body ->
           Dlist [binding] :: Dlist (Dsym "let" :: body) :: [] )
         bindings (Dlist [] :: body))
-  | _ -> failwith "bad syntax in (let*)"
+  | _ -> failwith "bad syntax in (let\*\)"
 
 and analyze_letrec qq env = function
   | Dlist bindings :: body ->
@@ -254,8 +138,9 @@ and analyze_letrec qq env = function
         variables' inits';
       Emit.Let (variables', inits', analyze_body qq env' body)
   | _ -> failwith "bad syntax in (letrec)"
+  *)
 
-and analyze_let qq env = function
+(* and analyze_let qq env = function
   | (Dsym _ as v) :: Dlist bindings :: body -> (* named let *)
       let binding_names, binding_values =
         List.fold_right
@@ -285,58 +170,47 @@ and analyze_let qq env = function
       in
       Emit.Let (variables', inits, analyze_body qq env' body)
   | _ -> failwith "bad syntax in (let)"
+  *)
 
-and analyze_set qq env = function
+and analyze_set env = function
   | Dsym name :: exp :: [] ->
-      begin try
-        match M.find name env with
-        | Emit.Variable var ->
-            var.Emit.mut <- true; Emit.Set (var, analyze qq env exp)
-        | Emit.Syntax _ -> failwith "cannot! a syntax"
-        | Emit.Builtin (_, _, _) -> failwith "cannot set! a builtin"
-      with Not_found -> failwith "cannot set! an undefined variable" end
+      begin match find name env with
+        | Tfree
+        | Tother -> Passign (name, analyze env exp)
+        | Tspecial _ -> failwith "cannot set! a syntax"
+        | Tmacro _ -> failwith "cannot set! a macro"
+      end
   | _ -> failwith "bad syntax in set!"
 
-and analyze_lambda qq env = function
+and analyze_lambda env = function
   | Dlist args :: body ->
-
-      let args = List.map
-        (function Dsym arg -> arg | _ -> failwith "bad syntax in (lambda)")
-        args in
-      let args' = List.map new_var args in
-      let env' =
-        List.fold_left2
-          (fun env arg arg' ->
-            M.add arg (Emit.Variable arg') env) env args args' in
-      Emit.Lambda (false, args', analyze_body qq env' body)
-
+      let args =
+        List.map
+          (function
+            | Dsym arg -> arg
+            | _ -> failwith "bad syntax in (lambda)") args in
+      let env = List.fold_left (fun env x -> M.remove x env) env args in
+      Plambda (args, analyze_body env body)
   | Ddot (args, Dsym a) :: body ->
-      let args = List.map
-        (function Dsym arg -> arg | _ -> failwith "bad syntax in (lambda)") args in
-      let args = List.append args [a] in
-      let args' = List.map new_var args in
-      let env' =
-        List.fold_left2
-          (fun env arg arg' -> M.add arg (Emit.Variable arg') env)
-            env args args' in
-      Emit.Lambda (true, args', analyze_body qq env' body)
-
+      let args =
+        List.map
+          (function
+            | Dsym arg -> arg
+            | _ -> failwith "bad syntax in (lambda)") args in
+      let env =
+        M.remove a
+          (List.fold_left
+            (fun env x -> M.remove x env) env args) in
+      PlambdaVar (args, a, analyze_body env body)
   | Dsym name :: body ->
-      let arg' = new_var name in
-      let env' = M.add name (Emit.Variable arg') env in
-      Emit.Lambda (true, [arg'], analyze_body qq env' body)
-
+      PlambdaVar ([], name, analyze_body (M.remove name env) body)
   | _ -> failwith "bad syntax in (lambda)"
 
-and analyze_alternative qq env = function
-  | condition :: iftrue :: [] ->
-      Emit.If
-        (analyze qq env condition, analyze qq env iftrue,
-          Emit.Quote (Dlist [])) (* Should be Svoid? *)
-  | condition :: iftrue :: iffalse :: [] ->
-      Emit.If
-        (analyze qq env condition, analyze qq env iftrue,
-         analyze qq env iffalse)
+and analyze_alternative env = function
+  | cond :: t :: [] ->
+      Pif (analyze env cond, analyze env t, Pquote Dunspec)
+  | cond :: t :: f :: [] ->
+      Pif (analyze env cond, analyze env t, analyze env f)
   | _ -> failwith "analyze_alternative: bad syntax in (if)"
 
   (*
@@ -388,8 +262,8 @@ and analyze_cond qq env cdr =
   loop cdr
   *)
 
-and analyze_and qq env = function
-  | [] -> Emit.Quote (Dbool true)
+(* and analyze_and qq env = function
+  | [] -> Pquote (Dbool true)
   | [x] -> analyze qq env x
   | x :: xs ->
       let v = new_var_no_mangle "test" false 0 in
@@ -407,6 +281,7 @@ and analyze_or qq env = function
       Emit.Let ([v], [analyze qq env x],
         Emit.If (Emit.Reference v', Emit.Reference v',
           analyze_or qq env xs))
+          *)
 
   (*
 and analyze_quasiquote qq env cdr =
@@ -545,9 +420,11 @@ and analyze_case qq env cdr =
   | _ -> failwith "bad syntax in (case)"
   *)
 
+  (*
 and analyze_delay qq env = function
   | e :: [] -> Emit.Delay (analyze qq env e)
   | _ -> failwith "bad syntax in (delay)"
+  *)
 
   (*
 and analyze_do qq env cdr =
@@ -616,7 +493,21 @@ and analyze_do qq env cdr =
   | _ -> failwith "bad syntax in (do)"
   *)
 
+  (*
 and analyze_time qq env = function
   | e :: [] ->
       Emit.Time (analyze qq env e)
   | _ -> failwith "bad syntax in (time)"
+  *)
+
+(* and analyze_macro qq env = function
+  | Dlist [Dsym keyword; Dlist (Dsym "syntax-rules" :: Dlist literals :: rules)] ->
+      ...
+  | _ -> failwith "bad syntax in (let-syntax)"
+  *)
+
+and analyze_let_syntax env = function
+  | Dlist bindings :: body -> assert false
+      (* let macros = List.map (analyze_macro qq env) bindings in
+      ...*)
+  | _ -> failwith "bad syntax in (let-syntax)"

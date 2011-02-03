@@ -1,5 +1,5 @@
 %{
-  open Datum
+  open Types
 %}
 
 %token LP RP EOF DOT QUOTE
@@ -10,16 +10,18 @@
 %token <char> CHAR
 %token <string> STRING
 
-%type <Datum.datum list> program
-%type <Datum.datum> ast
+%type <Types.datum> program
+%type <Types.datum> ast
 %start ast
 %start program
 
 %%
 
 program:
-  lst = list(ast) EOF
-  { lst }
+(*  lst = list(ast) EOF
+  { lst } *)
+  ast EOF
+  { $1 }
   ;
 
 ast:
